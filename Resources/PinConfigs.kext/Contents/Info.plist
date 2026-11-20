@@ -6362,6 +6362,24 @@
 					<key>AFGLowPowerState</key>
 					<data>AwAAAA==</data>
 					<key>Codec</key>
+					<string>hgs -Realtek ALC623 Lenovo ThinkCentre P340</string>
+					<key>CodecID</key>
+					<integer>283903523</integer>
+					<key>ConfigData</key>
+					<data>AUccEAFHHUABRx4BAUcfAQF3HCABdx0BAXceFwF3H5ABhxwwAYcdEAGHHqABhx+QAZccQAGXHRABlx6BAZcfAgIXHFACFx0QAhceIQIXHwIBJxzwAScdAAEnHgABJx9AAacc8AGnHREBpx4RAacfQQG3HPABtx0RAbceEQG3H0EB1xzwAdcdAAHXHkAB1x9AAecc8AHnHREB5x4RAecfQQ==</data>
+					<key>FuncGroup</key>
+					<integer>1</integer>
+					<key>LayoutID</key>
+					<integer>19</integer>
+					<key>WakeConfigData</key>
+					<data></data>
+					<key>WakeVerbReinit</key>
+					<true/>
+				</dict>
+				<dict>
+					<key>AFGLowPowerState</key>
+					<data>AwAAAA==</data>
+					<key>Codec</key>
 					<string>Mirone - Realtek ALC662</string>
 					<key>CodecID</key>
 					<integer>283903586</integer>

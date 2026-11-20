@@ -28,6 +28,14 @@
 				<key>Path</key>
 				<string>layout13.xml.zlib</string>
 			</dict>
+				<dict>
+					<key>Comment</key>
+					<string>hgs -Realtek ALC623 Lenovo ThinkCentre P340</string>
+					<key>Id</key>
+					<integer>19</integer>
+					<key>Path</key>
+					<string>layout19.xml.zlib</string>
+				</dict>
 		</array>
 		<key>Platforms</key>
 		<array>
@@ -47,6 +55,14 @@
 				<key>Path</key>
 				<string>Platforms13.xml.zlib</string>
 			</dict>
+				<dict>
+					<key>Comment</key>
+					<string>hgs -Realtek ALC623 Lenovo ThinkCentre P340</string>
+					<key>Id</key>
+					<integer>19</integer>
+					<key>Path</key>
+					<string>Platforms19.xml.zlib</string>
+				</dict>
 		</array>
 	</dict>
 	<key>Patches</key>
