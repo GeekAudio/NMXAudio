@@ -1,0 +1,37 @@
+--- a/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
++++ b/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
+@@ -1049,7 +1049,21 @@
+     g_lock = IORecursiveLockAlloc();
+     g_devices = OSArray::withCapacity(8);
+     g_controllers = OSArray::withCapacity(4);
+-    return g_lock && g_devices && g_controllers ? KERN_SUCCESS : KERN_FAILURE;
++    if (g_lock && g_devices && g_controllers)
++        return KERN_SUCCESS;
++    if (g_controllers) {
++        g_controllers->release();
++        g_controllers = nullptr;
++    }
++    if (g_devices) {
++        g_devices->release();
++        g_devices = nullptr;
++    }
++    if (g_lock) {
++        IORecursiveLockFree(g_lock);
++        g_lock = nullptr;
++    }
++    return KERN_RESOURCE_SHORTAGE;
+ }
+ 
+ kern_return_t nmx_audio_kmod_stop(kmod_info_t *, void *)
+@@ -1064,11 +1078,3 @@
+         IORecursiveLockFree(g_lock);
+     return KERN_SUCCESS;
+ }
+-
+-extern "C" {
+-kern_return_t _start(kmod_info_t *ki, void *data);
+-kern_return_t _stop(kmod_info_t *ki, void *data);
+-KMOD_EXPLICIT_DECL(com.nullmoth.NMXAudio, "1.0.2", _start, _stop)
+-__private_extern__ kmod_start_func_t *_realmain = nmx_audio_kmod_start;
+-__private_extern__ kmod_stop_func_t *_antimain = nmx_audio_kmod_stop;
+-}

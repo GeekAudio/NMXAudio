@@ -12,3 +12,5 @@ build
 cov-int
 /MacKernelSDK
 /clang32
+!NMXAudio/Build/
+__pycache__/

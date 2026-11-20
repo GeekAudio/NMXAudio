@@ -14,6 +14,7 @@ env:
 jobs:
   build:
     name: Build
+    if: github.repository == 'acidanthera/AppleALC'
     runs-on: macos-latest
     env:
       JOB_TYPE: BUILD
@@ -49,6 +50,7 @@ jobs:
 
   analyze-clang:
     name: Analyze Clang
+    if: github.repository == 'acidanthera/AppleALC'
     runs-on: macos-latest
     env:
       JOB_TYPE: ANALYZE

@@ -1,3 +1,20 @@
+# NMXAudio
+
+NMXAudio combines the NVIDIA display-audio driver with the AppleALC codec
+compatibility source in one x86_64 macOS kernel extension. It retains the
+`as.vit9696.AppleALC` bundle identifier, AppleALC user-client classes, layout
+settings and codec resources. The shared startup calls both components.
+
+The build produces one `NMXAudio.kext` for macOS 15 and newer on Intel.
+Lilu remains the patching framework. Features implemented by patching
+AppleHDA require an available AppleHDA stack, including on macOS 26.
+NMXAudio also provides the direct HDA audio path. This development project
+tracks build verification and hardware verification separately.
+
+[AppleALC documentation](#applealc) · [AppleALC 中文文档](README_CN.md) · [Build NMXAudio](NMXAudio/README.md)
+
+---
+
 AppleALC
 ========
 

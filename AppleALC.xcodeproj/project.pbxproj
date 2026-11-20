@@ -879,6 +879,7 @@
 					"MODULE_VERSION=$(MODULE_VERSION)",
 					"PRODUCT_NAME=$(PRODUCT_NAME)",
 					"HAVE_ANALOG_AUDIO=1",
+					"$(NMXAUDIO_DEFINITIONS)",
 					"$(inherited)",
 				);
 				HEADER_SEARCH_PATHS = "${PROJECT_DIR}/Lilu.kext/Contents/Resources";
@@ -890,8 +891,10 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
 				"MACOSX_DEPLOYMENT_TARGET[arch=ACID32]" = 10.4;
 				MODULE_NAME = as.vit9696.AppleALC;
-				MODULE_START = "$(PRODUCT_NAME)_kern_start";
-				MODULE_STOP = "$(PRODUCT_NAME)_kern_stop";
+				NMXAUDIO_MODULE_START = "$(PRODUCT_NAME)_kern_start";
+				MODULE_START = "$(NMXAUDIO_MODULE_START)";
+				NMXAUDIO_MODULE_STOP = "$(PRODUCT_NAME)_kern_stop";
+				MODULE_STOP = "$(NMXAUDIO_MODULE_STOP)";
 				MODULE_VERSION = 1.9.9;
 				OTHER_CFLAGS = (
 					"-mmmx",
@@ -929,7 +932,7 @@
 					"-target",
 					"i386-apple-macos10.4",
 				);
-				OTHER_LDFLAGS = "-static";
+				OTHER_LDFLAGS = ("-static", "$(NMXAUDIO_LDFLAGS)");
 				"OTHER_LDFLAGS[arch=ACID32]" = (
 					"-static",
 					"-target",
@@ -959,6 +962,7 @@
 					"MODULE_VERSION=$(MODULE_VERSION)",
 					"PRODUCT_NAME=$(PRODUCT_NAME)",
 					"HAVE_ANALOG_AUDIO=1",
+					"$(NMXAUDIO_DEFINITIONS)",
 				);
 				HEADER_SEARCH_PATHS = "${PROJECT_DIR}/Lilu.kext/Contents/Resources";
 				INFOPLIST_FILE = "AppleALC/AppleALC-Info.plist";
@@ -971,8 +975,10 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
 				"MACOSX_DEPLOYMENT_TARGET[arch=ACID32]" = 10.4;
 				MODULE_NAME = as.vit9696.AppleALC;
-				MODULE_START = "$(PRODUCT_NAME)_kern_start";
-				MODULE_STOP = "$(PRODUCT_NAME)_kern_stop";
+				NMXAUDIO_MODULE_START = "$(PRODUCT_NAME)_kern_start";
+				MODULE_START = "$(NMXAUDIO_MODULE_START)";
+				NMXAUDIO_MODULE_STOP = "$(PRODUCT_NAME)_kern_stop";
+				MODULE_STOP = "$(NMXAUDIO_MODULE_STOP)";
 				MODULE_VERSION = 1.9.9;
 				OTHER_CFLAGS = (
 					"-mmmx",
@@ -1010,7 +1016,7 @@
 					"-target",
 					"i386-apple-macos10.4",
 				);
-				OTHER_LDFLAGS = "-static";
+				OTHER_LDFLAGS = ("-static", "$(NMXAUDIO_LDFLAGS)");
 				"OTHER_LDFLAGS[arch=ACID32]" = (
 					"-static",
 					"-target",
@@ -1124,6 +1130,7 @@
 					"MODULE_VERSION=$(MODULE_VERSION)",
 					"PRODUCT_NAME=$(PRODUCT_NAME)",
 					"HAVE_ANALOG_AUDIO=1",
+					"$(NMXAUDIO_DEFINITIONS)",
 					"$(inherited)",
 				);
 				HEADER_SEARCH_PATHS = "${PROJECT_DIR}/Lilu.kext/Contents/Resources";
@@ -1135,8 +1142,10 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.6;
 				"MACOSX_DEPLOYMENT_TARGET[arch=ACID32]" = 10.4;
 				MODULE_NAME = as.vit9696.AppleALC;
-				MODULE_START = "$(PRODUCT_NAME)_kern_start";
-				MODULE_STOP = "$(PRODUCT_NAME)_kern_stop";
+				NMXAUDIO_MODULE_START = "$(PRODUCT_NAME)_kern_start";
+				MODULE_START = "$(NMXAUDIO_MODULE_START)";
+				NMXAUDIO_MODULE_STOP = "$(PRODUCT_NAME)_kern_stop";
+				MODULE_STOP = "$(NMXAUDIO_MODULE_STOP)";
 				MODULE_VERSION = 1.9.9;
 				OTHER_CFLAGS = (
 					"-mmmx",
@@ -1178,7 +1187,7 @@
 					"-target",
 					"i386-apple-macos10.4",
 				);
-				OTHER_LDFLAGS = "-static";
+				OTHER_LDFLAGS = ("-static", "$(NMXAUDIO_LDFLAGS)");
 				"OTHER_LDFLAGS[arch=ACID32]" = (
 					"-static",
 					"-target",

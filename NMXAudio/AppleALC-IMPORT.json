@@ -1,0 +1,592 @@
+{
+  "schemaVersion": 1,
+  "sourceRepository": "https://github.com/acidanthera/AppleALC",
+  "upstreamRef": "refs/heads/master",
+  "upstreamMasterAtValidation": "ff01db21749271916d44605503499ceaa61d94b2",
+  "checkedAtUtc": "2026-11-20T21:27:18+00:00",
+  "head": "2aa6cb629fc2be8a103f1c026bf6c7e8132b6128",
+  "openPrSnapshot": {
+    "state": "open",
+    "count": 15,
+    "source": "GitHub REST API"
+  },
+  "prMergePolicy": "No PR commits were squashed; each fetched head is the second parent of a merge commit. Conflict resolutions only combine independent additions.",
+  "prs": [
+    {
+      "number": 966,
+      "title": "feat: Bring Conexant CX8071 for Axioo Hype 7 AMD X7-2",
+      "url": "https://github.com/acidanthera/AppleALC/pull/966",
+      "author": "kodeaqua",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "master",
+      "headSha": "e40d02232bb7100efb1d3204612b67ab52d25cc9",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "7500be2dd17b3dca4ca9f34e311528a6fb1fc377",
+      "conflictsResolved": [],
+      "resolution": "automatic merge; no conflict",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "A",
+          "path": "Resources/CX8071/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/CX8071/Platforms11.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/CX8071/layout11.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 969,
+      "title": "Added CX11970 layout 15 for VAIO VJFE59",
+      "url": "https://github.com/acidanthera/AppleALC/pull/969",
+      "author": "raphaelallain",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "cx11970-vaio-layout15",
+      "headSha": "328ad6cd31ce45287c70284d8ea2e20bb2f5cc33",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "66c6539c9da286db795bf0610e30fa724899f2ae",
+      "conflictsResolved": [
+        "Resources/PinConfigs.kext/Contents/Info.plist"
+      ],
+      "resolution": "combined independent HDAConfigDefault records after verifying unique (CodecID, LayoutID, FuncGroup) keys and unchanged existing entries",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Resources/CX8400/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/CX8400/Platforms15.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/CX8400/layout15.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 971,
+      "title": "Add ALCS1200A layout 81 for MSI MAG B460 TORPEDO",
+      "url": "https://github.com/acidanthera/AppleALC/pull/971",
+      "author": "musatDev",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "msi-b460-layout81",
+      "headSha": "5c84be919de3b42e81e278164974398a04ba4a70",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "32ec4c5282b0323deab7c0c5c62906dbcca3fc4a",
+      "conflictsResolved": [
+        "Resources/PinConfigs.kext/Contents/Info.plist"
+      ],
+      "resolution": "combined independent HDAConfigDefault records after verifying unique (CodecID, LayoutID, FuncGroup) keys and unchanged existing entries",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Resources/ALCS1200A/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALCS1200A/Platforms81.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALCS1200A/layout81.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 972,
+      "title": "Add ALC897 layout-id 14 for Asus TUF Gaming Z690-Plus WiFi D4",
+      "url": "https://github.com/acidanthera/AppleALC/pull/972",
+      "author": "GeekAudio",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "alc897-layout14",
+      "headSha": "db96b40dec4fc3fe837fbca8c0ddcab7f7ec6585",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "8d365858da1319a1e895b3db3431428034850f8c",
+      "conflictsResolved": [],
+      "resolution": "automatic merge; no conflict",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Changelog.md"
+        },
+        {
+          "status": "M",
+          "path": "Resources/ALC897/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC897/Platforms14.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC897/layout14.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 973,
+      "title": "Add ALC230 layout-id 21 for Lenovo B330-15IKBR by maiconjs",
+      "url": "https://github.com/acidanthera/AppleALC/pull/973",
+      "author": "maiconjs",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "alc230-b330-layout21",
+      "headSha": "36f0e25c73c6ab6e1727c2350854684212c8fc0c",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "500091a36c291b8a93a71616c7de907fc9b99efe",
+      "conflictsResolved": [
+        "Changelog.md"
+      ],
+      "resolution": "previously merged during an earlier retry",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Changelog.md"
+        },
+        {
+          "status": "A",
+          "path": "Dumps/ALC230/Lenovo B330-15IKBR.txt"
+        },
+        {
+          "status": "M",
+          "path": "Resources/ALC230/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC230/Platforms21.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC230/layout21.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 974,
+      "title": "add ALCS1220A layout-id=12 for ROG MAXIMUS XI GENE by Xezun",
+      "url": "https://github.com/acidanthera/AppleALC/pull/974",
+      "author": "Xezun",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "master",
+      "headSha": "814018a9ef9f63bb6aedb0f7acfb0268d7d3b01f",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "7574c28e751fefde6fb96a9c4caf48e984049648",
+      "conflictsResolved": [],
+      "resolution": "automatic merge; no conflict",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Resources/ALCS1220A/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALCS1220A/Platforms12.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALCS1220A/layout12.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 975,
+      "title": "ALC287: add layout 99 for Lenovo Legion IAX10H shared-DAC speakers",
+      "url": "https://github.com/acidanthera/AppleALC/pull/975",
+      "author": "Ersiter",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "feature/alc287-legion-shared-dac",
+      "headSha": "a9b406e7322c878d488cdc847a5843911dadc344",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "61d8cd83dd2db50cb55a687813fc49b48a059d43",
+      "conflictsResolved": [],
+      "resolution": "automatic merge; no conflict",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "AppleALC/kern_alc.cpp"
+        },
+        {
+          "status": "M",
+          "path": "Changelog.md"
+        },
+        {
+          "status": "M",
+          "path": "Resources/ALC287/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC287/Platforms99.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC287/layout99.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 976,
+      "title": "fang - Realtek ALC256 for Xiaomi RedmiBook 13 (TIMI TM1921)",
+      "url": "https://github.com/acidanthera/AppleALC/pull/976",
+      "author": "jxnu2000fang",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "alc256-redmibook13-tm1921-layout101",
+      "headSha": "deee3c33093c1826fa26152ecf8c013f82242d8c",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "6cd1d64f950f601d2c17f75cca097484105ac654",
+      "conflictsResolved": [],
+      "resolution": "automatic merge; no conflict",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "A",
+          "path": "Dumps/alc256/Xiaomi RedmiBook 13 TIMI TM1921 (1D721921) RtHDDump.txt"
+        },
+        {
+          "status": "A",
+          "path": "Dumps/alc256/Xiaomi RedmiBook 13 TIMI TM1921 (1D721921) macOS 12.7.6.txt"
+        },
+        {
+          "status": "M",
+          "path": "Resources/ALC256/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC256/Platforms101.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC256/layout101.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 977,
+      "title": "Add support for Conexant SN6140 for Lenovo Ideapad Slim 5 14AHP10",
+      "url": "https://github.com/acidanthera/AppleALC/pull/977",
+      "author": "Ardaninho",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "master",
+      "headSha": "68cd628576c82f4cab26ca8c5946b6a2ddf9d645",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "3105dd72d67f4db0ebe563fccb1127ac8bda4269",
+      "conflictsResolved": [],
+      "resolution": "automatic merge; no conflict",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/SN6140/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/SN6140/Platforms11.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/SN6140/layout11.xml"
+        }
+      ]
+    },
+    {
+      "number": 978,
+      "title": "ALC294: add layout 29 for ASUS ROG STRIX G731GT-H7114",
+      "url": "https://github.com/acidanthera/AppleALC/pull/978",
+      "author": "bygadd",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "g731gt-alc294-layout29-upstream",
+      "headSha": "9a87eb50b4335f0ca2237fec50c98d7cbd03c2da",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "c452d3c12484e3f66a3c8085b85e204e48646f63",
+      "conflictsResolved": [
+        "Resources/PinConfigs.kext/Contents/Info.plist"
+      ],
+      "resolution": "combined independent HDAConfigDefault records after verifying unique (CodecID, LayoutID, FuncGroup) keys and unchanged existing entries",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Resources/ALC294/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC294/Platforms29.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC294/layout29.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 979,
+      "title": "ALC285: Layout ID 16 for ASUS ROG Zephyrus G16 2024 (GU605MI)",
+      "url": "https://github.com/acidanthera/AppleALC/pull/979",
+      "author": "pranshoe",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "master",
+      "headSha": "62cfe06253f440a25d3b97effc24b57cbca7b147",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "a1237b8628aef3c5f579715c1a886a15fde12067",
+      "conflictsResolved": [],
+      "resolution": "automatic merge; no conflict",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Resources/ALC285/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC285/Platforms16.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC285/layout16.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 980,
+      "title": "Add custom layoutid=19 for Lenovo Thinkstation P340",
+      "url": "https://github.com/acidanthera/AppleALC/pull/980",
+      "author": "hgsyantai",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "master",
+      "headSha": "9615ec65d5514338a3db2ce7f1d8d0fff979e122",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "9da741579a2c8b37159b301c93dbd6c21496268b",
+      "conflictsResolved": [],
+      "resolution": "automatic merge; no conflict",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "A",
+          "path": "Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "PinConfigs.kext.zip"
+        },
+        {
+          "status": "A",
+          "path": "Platforms19.xml"
+        },
+        {
+          "status": "A",
+          "path": "layout19.xml"
+        }
+      ]
+    },
+    {
+      "number": 981,
+      "title": "ALC283: add layout 99 for Acer Aspire E5-572G",
+      "url": "https://github.com/acidanthera/AppleALC/pull/981",
+      "author": "qianzhoushi",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "acer-e5-572g-layout99",
+      "headSha": "06cd260af07d3a2a8b9b7fd484239a94d94281f0",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "0338e9543b6bb13c12eef2ea81f74ccf43717fc0",
+      "conflictsResolved": [],
+      "resolution": "automatic merge; no conflict",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Resources/ALC283/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC283/Platforms99.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC283/layout99.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 982,
+      "title": "ALC269: add layout-id 269 for Clevo NH50RA (Hasee Z7M-CT5NA)",
+      "url": "https://github.com/acidanthera/AppleALC/pull/982",
+      "author": "Tang1124",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "alc269-clevo-nh50ra",
+      "headSha": "5ecae55f2bbaea21a9012b59e647d86f395d1764",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "cc3eb3148cfc248419a137ef2f92444458dcd30c",
+      "conflictsResolved": [
+        "Resources/PinConfigs.kext/Contents/Info.plist"
+      ],
+      "resolution": "combined independent HDAConfigDefault records after verifying unique (CodecID, LayoutID, FuncGroup) keys and unchanged existing entries",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Resources/ALC269/Info.plist"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC269/Platforms269.xml"
+        },
+        {
+          "status": "A",
+          "path": "Resources/ALC269/layout269.xml"
+        },
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    },
+    {
+      "number": 983,
+      "title": "ALC235: add CTIA combo-jack COEF and wake verbs for Intel NUC 8 (layout-id 8)",
+      "url": "https://github.com/acidanthera/AppleALC/pull/983",
+      "author": "bnqzzdf",
+      "state": "open",
+      "draft": false,
+      "baseRef": "master",
+      "baseSha": "ff01db21749271916d44605503499ceaa61d94b2",
+      "headRef": "alc235-nuc8-ctia-wake-fix",
+      "headSha": "436853cf4913824cec71b969c21fa626b1483ef4",
+      "mergeableCurrentQuery": null,
+      "mergeCommit": "adad4b25f2311715186728863538d18ce8f2e0ac",
+      "conflictsResolved": [],
+      "resolution": "automatic merge; no conflict",
+      "changedPathsAgainstPinnedBase": [
+        {
+          "status": "M",
+          "path": "Resources/PinConfigs.kext/Contents/Info.plist"
+        }
+      ]
+    }
+  ],
+  "normalizations": [
+    {
+      "pr": 980,
+      "commit": "2aa6cb629fc2be8a103f1c026bf6c7e8132b6128",
+      "summary": "Normalize ALC623 Lenovo ThinkCentre P340 layout 19 into canonical Resources/ALC623 paths; register layout/platform and import one authored PinConfigs entry.",
+      "fromArchive": "PinConfigs.kext.zip at PR head 9615ec65d5514338a3db2ce7f1d8d0fff979e122",
+      "archiveSha256": "a0bb0a3a576a6f7f683c3b19b5f729142be2d7529928d3dc1bf70b371d6cc9e3",
+      "codecIdResource": 1571,
+      "codecIdPinConfig": 283903523,
+      "layoutId": 19,
+      "funcGroup": 1,
+      "authorAttribution": "hgs -Realtek ALC623 Lenovo ThinkCentre P340",
+      "filesAdded": [
+        "Resources/ALC623/layout19.xml",
+        "Resources/ALC623/Platforms19.xml"
+      ],
+      "filesUpdated": [
+        "Resources/ALC623/Info.plist",
+        "Resources/PinConfigs.kext/Contents/Info.plist"
+      ],
+      "redundantFilesRemoved": [
+        "Info.plist",
+        "layout19.xml",
+        "Platforms19.xml",
+        "PinConfigs.kext.zip"
+      ]
+    }
+  ],
+  "validation": {
+    "xmlFilesParsed": 1336,
+    "xmlParseErrors": 0,
+    "plistFilesParsed": 118,
+    "plistParseErrors": 0,
+    "codecInfoPlists": 112,
+    "missingReferencedXmlSources": 0,
+    "pinConfigEntries": 677,
+    "p340PinTupleCount": 1,
+    "all15PrHeadsAncestors": true,
+    "resourceConvention": "All final codec metadata references have corresponding Resources/<codec>/<filename>.xml source; PR #980 was normalized from four noncanonical root paths."
+  }
+}
