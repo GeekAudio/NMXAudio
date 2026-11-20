@@ -2,6 +2,8 @@ AppleALC Changelog
 ==================
 #### v1.9.9
 - Added ALC897 layout-id 14 for Asus TUF Gaming Z690-Plus WiFi D4 by GeekAudio
+- Added ALC230 layout-id 21 for Lenovo B330-15IKBR (BIOS pin config, no speaker DSP) by maiconjs
+
 #### v1.9.8
 - Added ALC287 layout-id 99 for Lenovo Legion Y9000P IAX10H (83F5) with shared-DAC speaker control by Ersiter
 - Added ALC255/ALC3234 layout-id 89 for Dell OptiPlex 3060 MFF by Lorys89
