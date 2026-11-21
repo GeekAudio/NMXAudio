@@ -1,20 +1,21 @@
 # Intel macOS Tahoe 安装与回退
 
-本指南针对 Release 的 Tahoe 主机模板、Intel macOS 26 和 PCI HDA 控制器。实机验证环境为 macOS 26.7.4（25G422）、ASUS TUF Gaming Z690-Plus WiFi D4、ALC897 布局 14 和 RTX 3080 DisplayPort。板载输入输出、本地化、可选 HAL 加载及 DP 拔线后自动移除音频输出已在该环境验证。其他板卡、布局和显示器需单独复核。
+本指南适用于 Intel macOS Tahoe 26 的成品 `NMXAudio.kext`。实机验证环境为 macOS 26.7.4（25G422）、ASUS TUF Gaming Z690-Plus WiFi D4、ALC897 布局 14 和 RTX 3080 DisplayPort。板载输入输出、本地化、可选 HAL 加载及 DP 拔线后自动移除音频输出已在该环境验证。其他板卡、布局和显示器需单独复核。
 
-## 1. 组装完整安装包
+## 1. 下载并校验
 
-准备 Python 3 和 Xcode Command Line Tools。在 GitHub Release 下载 ZIP 和 `SHA256SUMS`，先执行 `shasum -a 256 -c SHA256SUMS`，再解压 ZIP。从你已有的原版 macOS 系统备份或 Apple 安装介质取得完整、仍有 Apple 签名的 Intel `AppleHDA.kext`。本次验证使用 AppleHDA **600.2**，包含五个内核插件和 `AppleHDAHALPlugIn.bundle`。不同 AppleHDA 版本需要重新做内核集合预检和实机验证。
-
-在解压后的目录里运行下面的命令。把 AppleHDA 路径换成自己的本地副本，输出目录应为新路径。
+从 [发行页](https://github.com/GeekAudio/NMXAudio/releases/latest) 下载 `NMXAudio.kext.zip`。在下载目录执行以下命令，对照发行说明中的 SHA-256，确认一致后再解压并检查签名。
 
 ```sh
-python3 stage-applehda.py --gated \
-  ./NMXAudio.kext /path/to/AppleHDA.kext ./assembled
-codesign --verify --deep --strict ./assembled/NMXAudio.kext
+shasum -a 256 NMXAudio.kext.zip
 ```
 
-组装器会先校验 Apple 签名及 x86_64 架构，然后将完整的 AppleHDA 及其插件放在 `assembled/NMXAudio.kext/Contents/PlugIns/AppleHDA.kext`。输出使用临时签名，组装后的目录才是安装输入。主机使用 AppleALC 的 `as.vit9696.AppleALC` bundle ID，内嵌 AppleHDA 使用原 bundle ID，因此同一开机只应存在各一份。
+```sh
+ditto -x -k NMXAudio.kext.zip .
+codesign --verify --deep --strict ./NMXAudio.kext
+```
+
+解压后得到一个 `NMXAudio.kext`，其中包含 AppleHDA 600.2、五个内核插件和可选的 HAL 插件。外层采用临时签名，继续使用 AppleALC 的 `as.vit9696.AppleALC` bundle ID。内嵌 AppleHDA 使用原 bundle ID，安装前请按下一节处理独立副本。
 
 ## 2. 清理现有音频安装
 
@@ -27,7 +28,7 @@ codesign --verify --deep --strict ./assembled/NMXAudio.kext
 
 ## 3. 在隔离目录链接 AuxKC
 
-这一步先生成测试集合，便于在替换正在使用的集合前验证。以下使用 Bash。应在已完成旧音频迁移、能读取 BootKC 与 SystemKC 的目标系统执行。先将当前 `/Library/Extensions` 下仍需使用的 kext 复制进隔离仓库，保持其内部相对路径，再加入上一步生成的 `NMXAudio.kext`。
+这一步先生成测试集合，便于在替换正在使用的集合前验证。以下使用 Bash。应在已完成旧音频迁移、能读取 BootKC 与 SystemKC 的目标系统执行。先将当前 `/Library/Extensions` 下仍需使用的 kext 复制进隔离仓库，保持其内部相对路径，再加入刚解压的 `NMXAudio.kext`。
 
 ```bash
 job="$(mktemp -d)"
@@ -36,7 +37,7 @@ sudo ditto /Library/Extensions "$job/Extensions"
 if [ -e "$job/Extensions/NMXAudio.kext" ]; then
   sudo mv "$job/Extensions/NMXAudio.kext" "$job/NMXAudio.previous.kext"
 fi
-sudo ditto --norsrc --noextattr --noacl ./assembled/NMXAudio.kext "$job/Extensions/NMXAudio.kext"
+sudo ditto --norsrc --noextattr --noacl ./NMXAudio.kext "$job/Extensions/NMXAudio.kext"
 sudo chown -R root:wheel "$job/Extensions"
 sudo chmod -R go-w,a+rX "$job/Extensions"
 
@@ -61,10 +62,10 @@ sudo kmutil inspect --arch x86_64 -A "$job/Probe.kc" --show-kext-uuids
 
 ## 4. 安装到系统
 
-1. 确认已有上一步的隔离链接结果和可读的回退备份。将组装后的 **`NMXAudio.kext`** 整体复制至 `/Library/Extensions/NMXAudio.kext`，设置 `root:wheel` 所有权且组及其他用户不可写，并用 `codesign --verify --deep --strict` 复验。若目标已有版本，先将其移到备份，避免合并两棵 bundle。
+1. 确认已有上一步的隔离链接结果和可读的回退备份。将解压得到的 **`NMXAudio.kext`** 整体复制至 `/Library/Extensions/NMXAudio.kext`，设置 `root:wheel` 所有权且组及其他用户不可写，并用 `codesign --verify --deep --strict` 复验。若目标已有版本，先将其移到备份，避免合并两棵 bundle。
 2. 用第 3 节的同一组输入重建正式集合。将仓库改为 `/Library/Extensions`，七个音频 bundle 参数都改为其最终安装路径。先输出到新文件，再用 `kmutil inspect` 验证实际路径和 UUID 后替换 `/Library/KernelCollections/AuxiliaryKernelExtensions.kc`。隔离集合仍引用隔离用的路径，应由正式链接结果替换。使用系统支持的扩展授权方式完成确认。
-3. **可选 HAL**。若需要 AppleHDA 的旧版用户态 HAL 功能，可从本地 AppleHDA 原包复制 Apple 签名的 `AppleHDAHALPlugIn.bundle` 至 `/Library/Audio/Plug-Ins/HAL/`。目标若已有另一版本，先记录并备份。备份并移出这次新增的副本后重启，即可走标准 IOAudio 路径。部分系统进程可能因沙箱限制无法加载这个副本。
-4. 保存工作并重启。在「声音」检查板载输入与输出、端口名称、播放和录音。连接音频型显示器时检查实际设备名和音量、左右平衡；拔线后检查输出是否消失。画面的热插拔由显卡驱动处理。
+3. **可选 HAL**。若需要 AppleHDA 的旧版用户态 HAL 功能，可将 `NMXAudio.kext/Contents/PlugIns/AppleHDA.kext/Contents/PlugIns/AppleHDAHALPlugIn.bundle` 复制至 `/Library/Audio/Plug-Ins/HAL/`。目标若已有另一版本，先记录并备份。备份并移出这次新增的副本后重启，即可走标准 IOAudio 路径。部分系统进程可能因沙箱限制无法加载这个副本。
+4. 保存工作并重启。在「声音」检查板载输入与输出、端口名称、播放和录音。连接音频型显示器时检查实际设备名和音量、左右平衡；拔线后检查输出是否消失。DP 输出的移除依赖兼容显卡驱动发布的显示器状态。画面是否能在热插拔后点亮，由显卡驱动处理。
 
 ## 5. 核对与回退
 

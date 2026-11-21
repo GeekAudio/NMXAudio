@@ -1,6 +1,8 @@
 # AppleALC PR 纳入清单
 
-本版基于 AppleALC `ff01db21749271916d44605503499ceaa61d94b2`，纳入所记录的 15 个 PR。每个 PR 的原始提交都保留在 Git 历史中。完整哈希、受影响路径和验证记录见 [AppleALC-IMPORT.json](AppleALC-IMPORT.json)。
+NMXAudio 1.1.1 的成品包含这份清单对应的 AppleALC 资源。通过 `alcid=` 或板载控制器的 `layout-id` 选择布局。 [下载成品](https://github.com/GeekAudio/NMXAudio/releases/tag/v1.1.1) · [安装与回退](DEPLOYMENT.md)
+
+本次导入基于 AppleALC `ff01db21749271916d44605503499ceaa61d94b2`，纳入所记录的 15 个 PR。每个 PR 的原始提交都保留在 Git 历史中。完整哈希、受影响路径和验证记录见 [AppleALC-IMPORT.json](AppleALC-IMPORT.json)。
 
 | AppleALC PR | 内容 | 原作者 | 原始提交 | 本仓库合并提交 |
 | --- | --- | --- | --- | --- |

@@ -3,7 +3,9 @@
 Codec contributions use the existing AppleALC resource format. Start with the
 official [Adding codec support guide](https://github.com/acidanthera/AppleALC/wiki/Adding-codec-support)
 and follow its resource layout so codec work remains familiar to AppleALC
-contributors.
+contributors. For installation and baseline hardware tests, use the complete kext
+from [Releases](https://github.com/GeekAudio/NMXAudio/releases/latest) and follow
+the [deployment guide](NMXAudio/DEPLOYMENT.md).
 
 ## Resource files
 
@@ -77,5 +79,5 @@ Use the repository's [native Tahoe build instructions](NMXAudio/README.md#system
 for pin-table or native-backend changes. For changes to the AppleALC-compatible
 source build, see [its build instructions](NMXAudio/README.md#applealc-compatibility-build).
 Run the build relevant to your change and include its result, along with the
-hardware evidence above, in the PR description. Do not include generated
-kexts, local build output, or machine-specific paths in the PR.
+hardware evidence above, in the PR description. Keep codec PRs focused on
+source files. Maintainers update `dist/NMXAudio.kext` when tagging a release.

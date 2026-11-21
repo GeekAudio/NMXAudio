@@ -1,7 +1,11 @@
 # NMXAudio builds
 
-For the Tahoe release kit, see [deployment and rollback](DEPLOYMENT.md) and the
-[AppleALC PR ledger](APPLEALC-PRS.md).
+The Tahoe release includes one ready-to-install `NMXAudio.kext`, with
+AppleHDA 600.2 and its plug-ins embedded. The release tag tracks the same
+bundle under `dist/`. [Download](https://github.com/GeekAudio/NMXAudio/releases/latest)
+· [Deployment and rollback](DEPLOYMENT.md) · [AppleALC PR ledger](APPLEALC-PRS.md)
+
+This page documents the source builds for maintainers.
 
 ## System kext (Tahoe)
 
@@ -15,8 +19,9 @@ IOHDAFamily, SimpleHDA and Lilu.
 
 Both builds share the pinned FreeBSD HDA port and the display-audio changes
 from [Liberator PR #17](https://github.com/nullmoth/liberator/commit/2e674d1b384729f5879c5b170e5990443090a059).
-The display path uses ELD for the monitor name and connection state, and
-exposes stereo volume, mute and balance through IOAudioFamily. Set
+The display path reads ELD for monitor identity and uses compatible NVIDIA
+framebuffer state to drop disconnected outputs even if the audio codec retains
+ELD. Active endpoints expose stereo volume, mute and balance through IOAudioFamily. Set
 `nmxaudiolang` to override the system's boot language for onboard jack labels.
 
 Each build packages the complete AppleALC resource tree in
@@ -124,10 +129,6 @@ native driver. If patching fails before AppleHDA claims the controller, native
 matching resumes. Failures after controller matching leave that controller
 with AppleHDA for the rest of the boot.
 
-To reproduce the signed host template in the release kit, use
-`--aux-host-base <Lilu-source>` in place of `--aux-host <Lilu-source> <AppleHDA.kext>`.
-This produces the host template and its manifest. Assemble the template with
-`stage-applehda.py --gated` as shown in the [deployment guide](DEPLOYMENT.md).
 The validated host build used Lilu source `0249c3a918c68a43891350f35fded615b1575776`.
 The deployment guide records the AppleHDA payload version tested on hardware.
 
@@ -145,14 +146,6 @@ and each of its five nested kexts. A scan of the outer package directory
 alone misses the second level of plug-ins. Verify the linked bundle paths
 and symbols, then confirm controller ownership, codec routing, and playback
 after reboot.
-
-To check just the unmodified AppleHDA payload's linkability with an existing
-build, prepare a temporary collection repository with:
-
-```sh
-python3 NMXAudio/Build/stage-applehda.py \
-  /path/to/NMXAudio.kext /path/to/AppleHDA.kext /path/to/new-link-check-directory
-```
 
 The legacy AppleALC compatibility build still uses standard Lilu plug-in
 registration. An EFI-injected Lilu does not appear in the on-disk BootKC used

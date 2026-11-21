@@ -1,5 +1,13 @@
-AppleALC Changelog
-==================
+# NMXAudio Changelog
+
+## NMXAudio 1.1.1
+
+- Ships the complete Tahoe `NMXAudio.kext` with AppleHDA 600.2 and its plug-ins in a single ZIP.
+- Tracks the same verified bundle in Git and updates the installation and migration docs. The driver binaries match the build verified on hardware.
+- [Release and checksum](https://github.com/GeekAudio/NMXAudio/releases/tag/v1.1.1) · [Installation and rollback](NMXAudio/DEPLOYMENT.md)
+
+## AppleALC upstream changelog
+
 #### v1.9.9
 - Added ALC897 layout-id 14 for Asus TUF Gaming Z690-Plus WiFi D4 by GeekAudio
 - Added ALC230 layout-id 21 for Lenovo B330-15IKBR (BIOS pin config, no speaker DSP) by maiconjs

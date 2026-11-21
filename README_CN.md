@@ -1,5 +1,9 @@
-AppleALC
-========
+AppleALC 上游中文文档
+====================
+
+使用 NMXAudio 时，请下载 Tahoe 成品 ZIP 并按本项目的安装指南操作。 [下载](https://github.com/GeekAudio/NMXAudio/releases/latest) · [安装与回退](NMXAudio/DEPLOYMENT.md) · [NMXAudio 项目说明](README.md)
+
+以下保留 AppleALC 上游的兼容性、资源定制和贡献说明。
 
 [![Build Status](https://github.com/acidanthera/AppleALC/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/acidanthera/AppleALC/actions) [![Scan Status](https://scan.coverity.com/projects/16166/badge.svg?flat=1)](https://scan.coverity.com/projects/16166)
 

@@ -16,14 +16,14 @@
 | --- | --- |
 | 系统 | Intel macOS Tahoe 26 / Darwin 25，需具备安装系统内核扩展的条件 |
 | 设备 | PCI HDA 板载控制器，或支持音频的 NVIDIA HDMI / DisplayPort 输出 |
-| 组装 | Python 3、Xcode Command Line Tools、本机取得的完整 Apple 签名 `AppleHDA.kext`。实机验证使用 600.2 |
+| 安装包 | 发行页提供完整的 `NMXAudio.kext.zip`，内含 AppleHDA 600.2 |
 | 位置 | `/Library/Extensions/NMXAudio.kext`，通过 AuxKC 加载 |
 
 ## 安装
 
-1. 下载 ZIP 和 `SHA256SUMS`，校验并解压。用自备的 AppleHDA 与包内工具组装完整的 `NMXAudio.kext`。
+1. 从发行页下载 `NMXAudio.kext.zip`。用发行说明中的 SHA-256 校验，解压得到可直接安装的 `NMXAudio.kext`。
 2. 备份引导配置。停用 EFI 和系统中重复的 AppleALC、AppleHDA 和 SimpleHDA。如果是 OCLP 根补丁提供的 AppleHDA，按安装指南先处理快照和其他补丁的依赖。
-3. 预检 AuxKC，再将完整的 kext 装入 `/Library/Extensions`，重建 AuxKC 后重启。组装、备份和核对命令见 [安装与回退](NMXAudio/DEPLOYMENT.md)。
+3. 预检 AuxKC，再将完整的 kext 装入 `/Library/Extensions`，重建 AuxKC 后重启。备份、安装和核对命令见 [安装与回退](NMXAudio/DEPLOYMENT.md)。
 
 ## 布局与 HAL
 
@@ -35,6 +35,8 @@
 NVIDIA HDMI / DP 音频统一由原生后端处理，可用真实显示器名称、音量、静音和左右平衡。板载端口名称在系统设置中按系统语言显示。AppleHDA HAL 为可选项，安装路径和退出方式见 [HAL 安装说明](NMXAudio/DEPLOYMENT.md#4-安装到系统)。
 
 ## 开发
+
+从 1.1.1 起，发行标签包含与下载附件一致的成品 [NMXAudio.kext](dist/NMXAudio.kext)。
 
 [构建说明](NMXAudio/README.md) · [声卡配置贡献](CONTRIBUTING.md) · [15 个 AppleALC PR 的原始提交与合并记录](NMXAudio/APPLEALC-PRS.md)
 
