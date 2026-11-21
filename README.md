@@ -10,6 +10,12 @@
 
 </div>
 
+## 功能
+
+- **一个 kext 提供板载和显示器音频。** 设置 `alcid=` 或板载控制器上的四字节 `layout-id` 时，AppleALC 选择原有布局，内嵌 AppleHDA 注册对应的板载输入和输出。未设置布局时，NMXAudio 通过原生 HDA 引擎注册板载设备。
+- **两种板载模式都支持 NVIDIA 显示器音频。** HDMI 和 DisplayPort 输出由 NMXAudio 原生引擎处理，显示实际的显示器名称，并提供音量、静音和左右平衡。
+- **板载端口跟随系统语言。** 在「系统设置 → 声音」查看本地化名称。命令行工具的语言选择可能不同。
+
 ## 要求
 
 | 项目 | 要求 |
@@ -25,14 +31,7 @@
 2. 备份引导配置。停用 EFI 和系统中重复的 AppleALC、AppleHDA 和 SimpleHDA。如果是 OCLP 根补丁提供的 AppleHDA，按安装指南先处理快照和其他补丁的依赖。
 3. 预检 AuxKC，再将完整的 kext 装入 `/Library/Extensions`，重建 AuxKC 后重启。备份、安装和核对命令见 [安装与回退](NMXAudio/DEPLOYMENT.md)。
 
-## 布局与 HAL
-
-| 配置 | 板载音频 |
-| --- | --- |
-| `alcid=` 正值或板载控制器上的四字节 `layout-id` | AppleALC 加载布局，内嵌 AppleHDA 驱动板载声卡 |
-| 无布局配置 | 由 NMXAudio 的原生 HDA 后端接管 |
-
-NVIDIA HDMI / DP 音频统一由原生后端处理，可用真实显示器名称、音量、静音和左右平衡。板载端口名称在系统设置中按系统语言显示。AppleHDA HAL 为可选项，安装路径和退出方式见 [HAL 安装说明](NMXAudio/DEPLOYMENT.md#4-安装到系统)。
+AppleHDA HAL 可按需安装。 [HAL 安装说明](NMXAudio/DEPLOYMENT.md#4-安装到系统)
 
 ## 开发
 
