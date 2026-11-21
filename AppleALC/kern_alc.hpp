@@ -13,10 +13,17 @@
 
 #include "kern_resources.hpp"
 
+class IOPCIDevice;
+
 class AlcEnabler {
 public:
 	void init();
 	void deinit();
+
+#if defined(NMXAUDIO_AUX_HOST)
+	bool prepareEmbeddedController(IOPCIDevice *pci, uint32_t layout);
+	bool prepareEmbeddedCodec(IOPCIDevice *pci);
+#endif
 	
 	/**
 	 *	Alocate single instance for shared usage and callbacks

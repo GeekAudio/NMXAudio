@@ -1,0 +1,52 @@
+--- a/realmac27/audio/NMXAudio/freebsd-hda/hdaa.c
++++ b/realmac27/audio/NMXAudio/freebsd-hda/hdaa.c
+@@ -5221,11 +5221,16 @@
+ 	}
+ }
+ 
++#include "nmx_hda_native_routes.inc"
++
++void nmx_audio_native_publish_routes(void *controller, uint32_t count);
++
+ static void
+ hdaa_audio_build_tree(struct hdaa_devinfo *devinfo)
+ {
+ 	struct hdaa_audio_as *as = devinfo->as;
+ 	int j, res;
++	uint32_t profile_routes = 0;
+ 
+ 	/* Trace all associations in order of their numbers. */
+ 	for (j = 0; j < devinfo->ascnt; j++) {
+@@ -5235,7 +5240,12 @@
+ 			device_printf(devinfo->dev,
+ 			    "Tracing association %d (%d)\n", j, as[j].index);
+ 		);
+-		if (as[j].dir == HDAA_CTL_OUT) {
++		if (nmx_hda_trace_profile_association(devinfo, j)) {
++			device_printf(devinfo->dev, "AppleALC PathMap applied for association %u\n",
++			    as[j].index);
++			++profile_routes;
++			res = 1;
++		} else if (as[j].dir == HDAA_CTL_OUT) {
+ retry:
+ 			res = hdaa_audio_trace_as_out(devinfo, j, 0);
+ 			if (res == 0 && as[j].hpredir >= 0 &&
+@@ -5264,6 +5274,9 @@
+ 			as[j].enable = 0;
+ 		}
+ 	}
++
++	if (devinfo->nmx_native_profile != NULL)
++		nmx_audio_native_publish_routes(nmx_device_xnu(devinfo->dev), profile_routes);
+ 
+ 	/* Look for additional DACs/ADCs. */
+ 	for (j = 0; j < devinfo->ascnt; j++) {
+@@ -6503,7 +6516,7 @@
+ 	HDA_BOOTHVERBOSE(
+ 		device_printf(dev, "Parsing pin associations...\n");
+ 	);
+-	hdaa_audio_as_parse(devinfo);
++	nmx_hda_parse_profile_associations(devinfo);
+ 	HDA_BOOTHVERBOSE(
+ 		device_printf(dev, "Building AFG tree...\n");
+ 	);

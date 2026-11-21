@@ -1,0 +1,60 @@
+--- a/realmac27/audio/NMXAudio/Info.plist
++++ b/realmac27/audio/NMXAudio/Info.plist
+@@ -13,4 +13,12 @@
+   <key>IOKitPersonalities</key>
+   <dict>
++    <key>ALCUserClientProvider</key>
++    <dict>
++      <key>CFBundleIdentifier</key><string>com.nullmoth.NMXAudio</string>
++      <key>IOClass</key><string>ALCUserClientProvider</string>
++      <key>IOProviderClass</key><string>NMXAudio</string>
++      <key>IOMatchCategory</key><string>ALCUserClientProvider</string>
++      <key>IOUserClientClass</key><string>ALCUserClient</string>
++    </dict>
+     <key>HDAudio</key>
+     <dict>
+--- a/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
++++ b/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
+@@ -664,6 +664,7 @@
+     void systemWillShutdown(IOOptionBits spec) override;
+     void trackDisplay(struct snddev_info *sc);
+     void forgetDisplay(struct snddev_info *sc);
++    IOReturn executeCodecVerb(uint16_t nid, uint16_t verb, uint16_t param, uint32_t *response);
+ };
+ OSDefineMetaClassAndStructors(NMXAudio, IOService)
+ 
+@@ -674,6 +675,34 @@
+ static NMXAudio *g_attaching;          /* the controller whose drivers are attaching (attaches run one at a time) */
+ static OSArray *g_devices;             /* the NMXAudioDevice objects published */
+ static OSArray *g_controllers;
++
++extern "C" int nmx_hda_codec_verb(void *controller, uint16_t nid, uint16_t verb,
++    uint16_t param, uint32_t *response);
++
++IOReturn NMXAudio::executeCodecVerb(uint16_t nid, uint16_t verb, uint16_t param, uint32_t *response)
++{
++    IORecursiveLockLock(g_lock);
++    const int error = displayPowered_ && !displayStopping_ && dev_ ?
++        nmx_hda_codec_verb(dev_, nid, verb, param, response) : ENXIO;
++    IORecursiveLockUnlock(g_lock);
++    switch (error) {
++        case 0: return kIOReturnSuccess;
++        case EINVAL: return kIOReturnBadArgument;
++        case ENXIO: return kIOReturnNotReady;
++        case EEXIST: return kIOReturnUnsupported;
++        case ENOMEM: return kIOReturnNoMemory;
++        default: return kIOReturnIOError;
++    }
++}
++
++extern "C" IOReturn nmx_audio_native_execute_verb(void *service, uint16_t nid,
++    uint16_t verb, uint16_t param, uint32_t *response)
++{
++    auto *controller = OSDynamicCast(NMXAudio, static_cast<OSObject *>(service));
++    if (controller == nullptr || response == nullptr)
++        return kIOReturnBadArgument;
++    return controller->executeCodecVerb(nid, verb, param, response);
++}
+ 
+ static void loadLocale();
+ 

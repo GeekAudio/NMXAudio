@@ -1,4 +1,4 @@
-name: Check plist files for 'real' key
+name: Check AppleALC resources
 
 on:
   push:
@@ -13,6 +13,26 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+
+      - name: Check codec resource catalog
+        run: |
+          catalog="$RUNNER_TEMP/nmxaudio-applealc"
+          python3 NMXAudio/Driver/package-applealc-resources.py Resources "$catalog"
+          python3 NMXAudio/Driver/package-applealc-resources.py Resources "$catalog" --verify
+
+      - name: Compile Tahoe audio profiles
+        run: |
+          python3 NMXAudio/Driver/generate-native-profiles.py Resources \
+            "$RUNNER_TEMP/nmx_native_profiles.h" --darwin-major 25 \
+            --report "$RUNNER_TEMP/native-profiles.json"
+          cc -x c -std=c11 -include stdint.h -fsyntax-only "$RUNNER_TEMP/nmx_native_profiles.h"
+
+      - name: Upload profile coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: nmx-native-profile-coverage
+          path: ${{ runner.temp }}/native-profiles.json
+          if-no-files-found: error
 
       - name: Install xmllint
         run: sudo apt-get update && sudo apt-get install libxml2-utils

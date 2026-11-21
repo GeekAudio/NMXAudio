@@ -9,12 +9,22 @@
 #include "ALCUserClientProvider.hpp"
 #include <Headers/kern_iokit.hpp>
 
+#if defined(NMXAUDIO_AUX_HOST)
+extern "C" IOReturn nmx_audio_native_execute_verb(void *controller, uint16_t nid,
+	uint16_t verb, uint16_t parameter, uint32_t *response);
+#endif
+
 OSDefineMetaClassAndStructors(ALCUserClientProvider, IOService);
 
 IOService *ALCUserClientProvider::probe(IOService *provider, SInt32 *score) {
 	hdaCodecDevice = provider;
 
+#if defined(NMXAUDIO_AUX_HOST)
+	nativeController = provider->metaCast("NMXAudio") != nullptr;
+	auto hdaController = nativeController ? provider : hdaCodecDevice->getParentEntry(gIOServicePlane);
+#else
 	auto hdaController = hdaCodecDevice->getParentEntry(gIOServicePlane);
+#endif
 	if (!hdaController) {
 		DBGLOG("client", "codec is missing AppleHDAController");
 		return nullptr;
@@ -62,6 +72,13 @@ uint64_t ALCUserClientProvider::sendHdaCommand(uint16_t nid, uint16_t verb, uint
 		return kIOReturnError;
 	}
 	
+#if defined(NMXAUDIO_AUX_HOST)
+	if (nativeController) {
+		uint32_t response = 0;
+		auto status = nmx_audio_native_execute_verb(hdaCodecDevice, nid, verb, param, &response);
+		return status == kIOReturnSuccess ? response : status;
+	}
+#endif
 	auto sharedAlc = AlcEnabler::getShared();
 	
 	if (!sharedAlc) {

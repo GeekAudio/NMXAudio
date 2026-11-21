@@ -361,19 +361,20 @@ index b41e26c04d1d369f2fabaeb5280b2dc7032a4f43..8a95f4551be90ab32c4cc2c942667fe4
  	if (c == 1)
  		snprintf(buf, buflen, "mono");
 diff --git a/realmac27/audio/NMXAudio/nmx_audio_kext.cpp b/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
-index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bfec812fcd 100644
+index 508fe00..dbe1c7c 100644
 --- a/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
 +++ b/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
-@@ -16,6 +16,8 @@
+@@ -16,6 +16,9 @@
  #include <IOKit/IOService.h>
  #include <IOKit/IOLib.h>
  #include <IOKit/IOLocks.h>
++#include <IOKit/IORegistryEntry.h>
 +#include <IOKit/IOTimerEventSource.h>
 +#include <IOKit/IOWorkLoop.h>
  #include <IOKit/pci/IOPCIDevice.h>
  #include <IOKit/IONVRAM.h>
  #include <libkern/c++/OSData.h>
-@@ -25,12 +27,18 @@
+@@ -25,12 +28,18 @@
  #include <IOKit/audio/IOAudioLevelControl.h>
  #include <IOKit/audio/IOAudioToggleControl.h>
  #include <IOKit/audio/IOAudioDefines.h>
@@ -392,7 +393,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
  
  /* FreeBSD's format and mixer constants the engine needs (sys/soundcard.h); the C side owns everything else */
  #define NMX_AFMT_S16_LE 0x00000010
-@@ -48,6 +56,165 @@ void *devclass_create(const char *name);
+@@ -48,6 +57,165 @@ void *devclass_create(const char *name);
  int devclass_add_driver(void *dc, void *driver, int pass, void **dcp);
  }
  
@@ -558,7 +559,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
  /* ---- the engine: one channel (play or record) of one PCM device */
  
  class NMXAudioEngine : public IOAudioEngine {
-@@ -55,6 +222,8 @@ class NMXAudioEngine : public IOAudioEngine {
+@@ -55,6 +223,8 @@ class NMXAudioEngine : public IOAudioEngine {
      struct snddev_info *sc_;
      struct pcm_channel *ch_;
      bool output_;
@@ -567,7 +568,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      void *ring_;
      UInt32 ringBytes_, frameBytes_, frames_, lastPtr_;
      UInt32 sampleBits_;
-@@ -64,9 +233,13 @@ class NMXAudioEngine : public IOAudioEngine {
+@@ -64,9 +234,13 @@ class NMXAudioEngine : public IOAudioEngine {
      static IOReturn muteChanged(OSObject *target, IOAudioControl *, SInt32, SInt32 v);
      SInt32 volume_ = 75;
      bool muted_ = false;
@@ -582,7 +583,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      void free() override;
      UInt32 getCurrentSampleFrame() override;
      IOReturn performAudioEngineStart() override;
-@@ -92,13 +265,14 @@ OSString *NMXAudioEngine::getGlobalUniqueID()
+@@ -92,13 +266,14 @@ OSString *NMXAudioEngine::getGlobalUniqueID()
      return OSString::withCString(id);
  }
  
@@ -598,7 +599,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      return true;
  }
  
-@@ -135,7 +309,8 @@ bool NMXAudioEngine::initHardware(IOService *provider)
+@@ -135,7 +310,8 @@ bool NMXAudioEngine::initHardware(IOService *provider)
          return false;
      frames_ = ringBytes_ / frameBytes_;
  
@@ -608,7 +609,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      IOAudioSampleRate sr = { rate, 0 };
      setSampleRate(&sr);
      setNumSampleFramesPerBuffer(frames_);
-@@ -160,14 +335,24 @@ bool NMXAudioEngine::initHardware(IOService *provider)
+@@ -160,14 +336,24 @@ bool NMXAudioEngine::initHardware(IOService *provider)
      addAudioStream(stream_);
      stream_->release();
  
@@ -641,7 +642,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      }
      IOAudioToggleControl *mute = IOAudioToggleControl::createMuteControl(false, kIOAudioControlChannelIDAll,
          kIOAudioControlChannelNameAll, 0, output_ ? kIOAudioControlUsageOutput : kIOAudioControlUsageInput);
-@@ -182,21 +367,50 @@ bool NMXAudioEngine::initHardware(IOService *provider)
+@@ -182,21 +368,50 @@ bool NMXAudioEngine::initHardware(IOService *provider)
      return true;
  }
  
@@ -695,7 +696,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      e->volume_ = v;
      unsigned lvl = e->muted_ ? 0 : (unsigned)v;
      nmx_pcm_mixer_set(e->sc_, e->output_ ? NMX_MIXER_VOLUME : NMX_MIXER_RECLEV, lvl, lvl);
-@@ -208,6 +422,10 @@ IOReturn NMXAudioEngine::muteChanged(OSObject *target, IOAudioControl *, SInt32,
+@@ -208,6 +423,10 @@ IOReturn NMXAudioEngine::muteChanged(OSObject *target, IOAudioControl *, SInt32,
      NMXAudioEngine *e = OSDynamicCast(NMXAudioEngine, target);
      if (e == nullptr)
          return kIOReturnBadArgument;
@@ -706,7 +707,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      e->muted_ = v != 0;
      unsigned lvl = e->muted_ ? 0 : (unsigned)e->volume_;
      nmx_pcm_mixer_set(e->sc_, e->output_ ? NMX_MIXER_VOLUME : NMX_MIXER_RECLEV, lvl, lvl);
-@@ -261,6 +479,16 @@ void NMXAudioEngine::blockDone()
+@@ -261,6 +480,16 @@ void NMXAudioEngine::blockDone()
  IOReturn NMXAudioEngine::clipOutputSamples(const void *mixBuf, void *sampleBuf, UInt32 first, UInt32 n,
                                             const IOAudioStreamFormat *, IOAudioStream *)
  {
@@ -723,7 +724,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      const float *in = (const float *)mixBuf + first * 2;
      UInt32 count = n * 2;
      if (sampleBits_ == 32) {
-@@ -281,6 +509,7 @@ IOReturn NMXAudioEngine::clipOutputSamples(const void *mixBuf, void *sampleBuf,
+@@ -281,6 +510,7 @@ IOReturn NMXAudioEngine::clipOutputSamples(const void *mixBuf, void *sampleBuf,
      return kIOReturnSuccess;
  }
  
@@ -731,7 +732,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
  IOReturn NMXAudioEngine::convertInputSamples(const void *sampleBuf, void *destBuf, UInt32 first, UInt32 n,
                                               const IOAudioStreamFormat *, IOAudioStream *)
  {
-@@ -303,9 +532,21 @@ IOReturn NMXAudioEngine::convertInputSamples(const void *sampleBuf, void *destBu
+@@ -303,9 +533,21 @@ IOReturn NMXAudioEngine::convertInputSamples(const void *sampleBuf, void *destBu
  class NMXAudioDevice : public IOAudioDevice {
      OSDeclareDefaultStructors(NMXAudioDevice)
      struct snddev_info *sc_;
@@ -754,7 +755,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      bool initHardware(IOService *provider) override;
  };
  OSDefineMetaClassAndStructors(NMXAudioDevice, IOAudioDevice)
-@@ -314,14 +555,25 @@ bool NMXAudioDevice::initHardware(IOService *provider)
+@@ -314,14 +556,25 @@ bool NMXAudioDevice::initHardware(IOService *provider)
  {
      if (!IOAudioDevice::initHardware(provider))
          return false;
@@ -782,7 +783,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
              engines++;
          if (e)
              e->release();
-@@ -336,19 +588,40 @@ class NMXAudio : public IOService {
+@@ -336,19 +589,41 @@ class NMXAudio : public IOService {
      IOPCIDevice *pci_;
      void *dev_;
      volatile int attach_;
@@ -790,6 +791,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
 +        struct snddev_info *pcm = nullptr;
 +        struct nmx_display_endpoint sink {};
 +        bool published = false;
++        bool confirmedByFramebuffer = false;
 +        unsigned missed = 0;
 +    };
 +    DisplayPCM displays_[16];
@@ -824,7 +826,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
  
  static bool enabled()
  {
-@@ -362,8 +635,17 @@ static bool enabled()
+@@ -362,8 +637,17 @@ static bool enabled()
  
  IOService *NMXAudio::probe(IOService *provider, SInt32 *score)
  {
@@ -843,7 +845,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      return IOService::probe(provider, score);
  }
  
-@@ -384,20 +666,24 @@ bool NMXAudio::start(IOService *provider)
+@@ -384,20 +668,24 @@ bool NMXAudio::start(IOService *provider)
      IOPCIDevice *pci = OSDynamicCast(IOPCIDevice, provider);
      if (pci == nullptr || g_lock == nullptr || !IOService::start(provider))
          return false;
@@ -872,7 +874,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      pci->setMemoryEnable(true);
      pci->setBusMasterEnable(true);
      pci_ = pci;
-@@ -432,6 +718,31 @@ static IODTNVRAM *nmx_nvram()
+@@ -432,6 +720,31 @@ static IODTNVRAM *nmx_nvram()
      return n;
  }
  
@@ -904,7 +906,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
  static bool nmx_marker_set()
  {
      IODTNVRAM *n = nmx_nvram();
-@@ -474,7 +785,13 @@ static int g_guard;     /* 0 = not checked this boot, 1 = armed by this boot, -1
+@@ -474,7 +787,13 @@ static int g_guard;     /* 0 = not checked this boot, 1 = armed by this boot, -1
  void NMXAudio::attachThread(void *arg, wait_result_t)
  {
      NMXAudio *self = (NMXAudio *)arg;
@@ -919,7 +921,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      if (g_guard == 0) {
          if (nmx_marker_set()) {
              g_guard = -1;
-@@ -485,17 +802,19 @@ void NMXAudio::attachThread(void *arg, wait_result_t)
+@@ -485,17 +804,19 @@ void NMXAudio::attachThread(void *arg, wait_result_t)
          }
      }
      if (g_guard < 0) {
@@ -941,7 +943,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
      if (self->dev_ == nullptr) {
          IOLog("NMXAudio: no driver took %04x:%04x\n", self->pci_->configRead16(kIOPCIConfigVendorID),
                self->pci_->configRead16(kIOPCIConfigDeviceID));
-@@ -509,6 +828,7 @@ void NMXAudio::attachThread(void *arg, wait_result_t)
+@@ -509,6 +830,7 @@ void NMXAudio::attachThread(void *arg, wait_result_t)
          self->pci_->joinPMtree(self);
          self->registerPowerDriver(self, states, 2);
          self->registerService();
@@ -949,7 +951,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
          self->attach_ = 1;
      }
      /* the guard comes off once audio has run for two minutes (the first controller's thread does it) */
-@@ -521,24 +841,125 @@ void NMXAudio::attachThread(void *arg, wait_result_t)
+@@ -521,24 +843,255 @@ void NMXAudio::attachThread(void *arg, wait_result_t)
      self->release();
  }
  
@@ -1046,6 +1048,121 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
 +    displayTimer_->setTimeoutMS(350);
 +}
 +
++enum class FramebufferPresence { Unknown, Present, Missing };
++
++static FramebufferPresence compareDisplayEDID(IORegistryEntry *entry, const nmx_display_endpoint &sink)
++{
++    auto *property = entry->copyProperty("IODisplayEDID");
++    auto *edid = OSDynamicCast(OSData, property);
++    auto result = FramebufferPresence::Unknown;
++    const uint8_t header[] = {0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00};
++    if (edid && edid->getLength() >= 128) {
++        auto *bytes = static_cast<const uint8_t *>(edid->getBytesNoCopy());
++        if (memcmp(bytes, header, sizeof(header)) == 0) {
++            const unsigned vendor = (bytes[8] << 8) | bytes[9];
++            const unsigned product = (bytes[11] << 8) | bytes[10];
++            result = vendor == sink.manufacturer && product == sink.product ?
++                FramebufferPresence::Present : FramebufferPresence::Missing;
++        }
++    }
++    if (property)
++        property->release();
++    return result;
++}
++
++static FramebufferPresence framebufferEDID(IOService *framebuffer, const nmx_display_endpoint &sink)
++{
++    // Available even before WindowServer has opened the framebuffer. Old
++    // graphics drivers still supply display EDID through the previous paths.
++    auto *property = framebuffer->copyProperty("NVRMDisplayEDIDIdentity");
++    auto *identity = OSDynamicCast(OSNumber, property);
++    const bool usable = identity && identity->numberOfBits() == 32;
++    const uint32_t observed = usable ? identity->unsigned32BitValue() : 0;
++    if (property)
++        property->release();
++    if (usable) {
++        const uint32_t expected = (uint32_t(sink.manufacturer) << 16) | sink.product;
++        return observed == expected ? FramebufferPresence::Present : FramebufferPresence::Missing;
++    }
++
++    auto result = compareDisplayEDID(framebuffer, sink);
++    if (result != FramebufferPresence::Unknown)
++        return result;
++
++    auto *children = IORegistryIterator::iterateOver(framebuffer, gIOServicePlane,
++                                                      kIORegistryIterateRecursively);
++    if (!children)
++        return FramebufferPresence::Unknown;
++    while (auto *child = OSDynamicCast(IORegistryEntry, children->getNextObject())) {
++        result = compareDisplayEDID(child, sink);
++        if (result != FramebufferPresence::Unknown)
++            break;
++    }
++    children->release();
++    return result;
++}
++
++// Newer NVRMFB versions remove the EDID product name when HPD reports a
++// disconnect. Compare only framebuffers on this audio controller's GPU.
++static FramebufferPresence framebufferPresence(IOPCIDevice *audio, const nmx_display_endpoint &sink)
++{
++    if (!sink.name[0])
++        return FramebufferPresence::Unknown;
++
++    auto *match = IOService::serviceMatching("NVRMNVDAFramebuffer");
++    if (!match)
++        return FramebufferPresence::Unknown;
++    auto *framebuffers = IOService::getMatchingServices(match);
++    match->release();
++    if (!framebuffers)
++        return FramebufferPresence::Unknown;
++
++    bool supportedTopology = false;
++    bool matchingNameWithoutEDID = false;
++    bool matchedEDID = false;
++    while (auto *framebuffer = OSDynamicCast(IOService, framebuffers->getNextObject())) {
++        IOPCIDevice *graphics = nullptr;
++        for (auto *provider = framebuffer->getProvider(); provider; provider = provider->getProvider()) {
++            graphics = OSDynamicCast(IOPCIDevice, provider);
++            if (graphics)
++                break;
++        }
++        if (!graphics || graphics->getProvider() != audio->getProvider() ||
++            graphics->getBusNumber() != audio->getBusNumber() ||
++            graphics->getDeviceNumber() != audio->getDeviceNumber() ||
++            graphics->getFunctionNumber() != 0)
++            continue;
++
++        auto *version = framebuffer->copyProperty("NVRMDisplayIdentityVersion");
++        auto *number = OSDynamicCast(OSNumber, version);
++        const bool supported = number && number->unsigned32BitValue() == 1;
++        if (version)
++            version->release();
++        if (!supported)
++            continue;
++        supportedTopology = true;
++
++        auto *property = framebuffer->copyProperty("NVRMDisplayProductName");
++        auto *product = OSDynamicCast(OSString, property);
++        const bool sameName = product && product->isEqualTo(sink.name);
++        if (property)
++            property->release();
++        if (!sameName)
++            continue;
++        const auto edid = framebufferEDID(framebuffer, sink);
++        matchingNameWithoutEDID |= edid == FramebufferPresence::Unknown;
++        if (edid == FramebufferPresence::Present) {
++            matchedEDID = true;
++            break;
++        }
++    }
++    framebuffers->release();
++    if (matchedEDID)
++        return FramebufferPresence::Present;
++    return supportedTopology && !matchingNameWithoutEDID ?
++        FramebufferPresence::Missing : FramebufferPresence::Unknown;
++}
++
 +void NMXAudio::displayPoll(OSObject *target, IOTimerEventSource *timer)
 +{
 +    auto *owner = static_cast<NMXAudio *>(target);
@@ -1055,16 +1172,31 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
 +            if (!display.pcm)
 +                continue;
 +            nmx_display_endpoint sink {};
-+            const bool present = nmx_pcm_display_endpoint(display.pcm, &sink) == NMX_DISPLAY_CONNECTED;
++            const bool eldPresent = nmx_pcm_display_endpoint(display.pcm, &sink) == NMX_DISPLAY_CONNECTED;
++            const bool sameSink =
++                sink.connector == display.sink.connector && sink.manufacturer == display.sink.manufacturer &&
++                sink.product == display.sink.product && strcmp(sink.name, display.sink.name) == 0;
++            const auto framebuffer = eldPresent ? framebufferPresence(owner->pci_, sink) :
++                FramebufferPresence::Unknown;
++            // A known sink can keep returning valid HDA presence and ELD
++            // after the graphics function has detected its disconnect.
++            const bool disconnected = sameSink && display.confirmedByFramebuffer &&
++                framebuffer == FramebufferPresence::Missing;
++            const bool present = eldPresent && !disconnected;
 +            display.missed = present ? 0 : display.missed + (display.missed < 2);
-+            const bool changed = present &&
-+                (sink.connector != display.sink.connector || sink.manufacturer != display.sink.manufacturer ||
-+                 sink.product != display.sink.product || strcmp(sink.name, display.sink.name) != 0);
-+            if (display.published && (changed || display.missed == 2) && unpublishDevice(display.pcm))
++            if (display.published && ((present && !sameSink) || display.missed == 2) &&
++                unpublishDevice(display.pcm)) {
 +                display.published = false;
++                if (disconnected)
++                    IOLog("NMXAudio: %s disconnected according to the framebuffer despite valid HDA ELD\n",
++                          display.sink.name);
++            }
 +            if (present && !display.published && publishDevice(owner, display.pcm, &sink)) {
 +                display.sink = sink;
 +                display.published = true;
++                display.confirmedByFramebuffer = framebuffer == FramebufferPresence::Present;
++            } else if (present && sameSink && framebuffer == FramebufferPresence::Present) {
++                display.confirmedByFramebuffer = true;
 +            }
 +        }
 +    }
@@ -1086,7 +1218,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
  }
  
  extern "C" void nmx_audio_diag_publish(const char *text)
-@@ -547,20 +968,19 @@ extern "C" void nmx_audio_diag_publish(const char *text)
+@@ -547,20 +1100,19 @@ extern "C" void nmx_audio_diag_publish(const char *text)
          g_attaching->setProperty("nmx-hda-diag", text);
  }
  
@@ -1117,7 +1249,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
  }
  
  extern "C" void nmx_audio_block_done(void *engine, struct pcm_channel *)
-@@ -570,25 +990,55 @@ extern "C" void nmx_audio_block_done(void *engine, struct pcm_channel *)
+@@ -570,25 +1122,55 @@ extern "C" void nmx_audio_block_done(void *engine, struct pcm_channel *)
  
  void NMXAudio::stop(IOService *provider)
  {
@@ -1173,7 +1305,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
  extern "C" {
  kern_return_t nmx_audio_kmod_start(kmod_info_t *ki, void *data);
  kern_return_t nmx_audio_kmod_stop(kmod_info_t *ki, void *data);
-@@ -596,9 +1046,10 @@ kern_return_t nmx_audio_kmod_stop(kmod_info_t *ki, void *data);
+@@ -596,9 +1178,10 @@ kern_return_t nmx_audio_kmod_stop(kmod_info_t *ki, void *data);
  
  kern_return_t nmx_audio_kmod_start(kmod_info_t *, void *)
  {
@@ -1186,7 +1318,7 @@ index 508fe00b93521e4754f54ea4b60f3fd27049f7eb..a0d67e77e91bce3ffa09049d6e3fb9bf
  }
  
  kern_return_t nmx_audio_kmod_stop(kmod_info_t *, void *)
-@@ -607,15 +1058,17 @@ kern_return_t nmx_audio_kmod_stop(kmod_info_t *, void *)
+@@ -607,15 +1190,17 @@ kern_return_t nmx_audio_kmod_stop(kmod_info_t *, void *)
          nmx_port_stop();
      if (g_devices)
          g_devices->release();

@@ -1,0 +1,32 @@
+diff --git a/realmac27/audio/NMXAudio/nmx_audio_kext.cpp b/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
+--- a/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
++++ b/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
+@@ -51,7 +51,8 @@
+ extern "C" {
++bool nmx_audio_embedded_defer(IOPCIDevice *pci);
+ struct nmx_drvmod { const char *bus; void *driver; };
+ extern struct nmx_drvmod nmx_drvmod_snd_hda_pci, nmx_drvmod_snd_hda_hdac, nmx_drvmod_snd_hda_hdacc,
+     nmx_drvmod_snd_hda_pcm_hdaa;
+ void *devclass_create(const char *name);
+ int devclass_add_driver(void *dc, void *driver, int pass, void **dcp);
+ }
+@@ -665,8 +666,11 @@
+ IOService *NMXAudio::probe(IOService *provider, SInt32 *score)
+ {
+     auto *pci = OSDynamicCast(IOPCIDevice, provider);
+     if (pci == nullptr || !enabled())
+         return nullptr;
+ 
++    if (nmx_audio_embedded_defer(pci))
++        return nullptr;
++
+     // Apple's HDA controller gets first refusal on onboard audio. Preserve
+     // the configured priority for NVIDIA display audio.
+@@ -1097,7 +1100,0 @@
+-extern "C" {
+-kern_return_t _start(kmod_info_t *ki, void *data);
+-kern_return_t _stop(kmod_info_t *ki, void *data);
+-KMOD_EXPLICIT_DECL(com.nullmoth.NMXAudio, "1.0.7", _start, _stop)
+-__private_extern__ kmod_start_func_t *_realmain = nmx_audio_kmod_start;
+-__private_extern__ kmod_stop_func_t *_antimain = nmx_audio_kmod_stop;
+-}

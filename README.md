@@ -1,19 +1,47 @@
+<div align="center">
+
 # NMXAudio
 
-NMXAudio combines the NVIDIA display-audio driver with the AppleALC codec
-compatibility source in one x86_64 macOS kernel extension. It retains the
-`as.vit9696.AppleALC` bundle identifier, AppleALC user-client classes, layout
-settings and codec resources. The shared startup calls both components.
+**在 Intel macOS Tahoe 上使用板载 HDA 和 NVIDIA 显示器音频**
 
-The build produces one `NMXAudio.kext` for macOS 15 and newer on Intel.
-Lilu remains the patching framework. Features implemented by patching
-AppleHDA require an available AppleHDA stack, including on macOS 26.
-NMXAudio also provides the direct HDA audio path. This development project
-tracks build verification and hardware verification separately.
+简体中文 · [English](README.en.md)
 
-[AppleALC documentation](#applealc) · [AppleALC 中文文档](README_CN.md) · [Build NMXAudio](NMXAudio/README.md)
+[下载](https://github.com/GeekAudio/NMXAudio/releases/latest) · [安装与回退](NMXAudio/DEPLOYMENT.md) · [AppleALC PR](NMXAudio/APPLEALC-PRS.md)
 
----
+</div>
+
+## 要求
+
+| 项目 | 要求 |
+| --- | --- |
+| 系统 | Intel macOS Tahoe 26 / Darwin 25，需具备安装系统内核扩展的条件 |
+| 设备 | PCI HDA 板载控制器，或支持音频的 NVIDIA HDMI / DisplayPort 输出 |
+| 组装 | Python 3、Xcode Command Line Tools、本机取得的完整 Apple 签名 `AppleHDA.kext`。实机验证使用 600.2 |
+| 位置 | `/Library/Extensions/NMXAudio.kext`，通过 AuxKC 加载 |
+
+## 安装
+
+1. 下载 ZIP 和 `SHA256SUMS`，校验并解压。用自备的 AppleHDA 与包内工具组装完整的 `NMXAudio.kext`。
+2. 备份引导配置。停用 EFI 和系统中重复的 AppleALC、AppleHDA 和 SimpleHDA。如果是 OCLP 根补丁提供的 AppleHDA，按安装指南先处理快照和其他补丁的依赖。
+3. 预检 AuxKC，再将完整的 kext 装入 `/Library/Extensions`，重建 AuxKC 后重启。组装、备份和核对命令见 [安装与回退](NMXAudio/DEPLOYMENT.md)。
+
+## 布局与 HAL
+
+| 配置 | 板载音频 |
+| --- | --- |
+| `alcid=` 正值或板载控制器上的四字节 `layout-id` | AppleALC 加载布局，内嵌 AppleHDA 驱动板载声卡 |
+| 无布局配置 | 由 NMXAudio 的原生 HDA 后端接管 |
+
+NVIDIA HDMI / DP 音频统一由原生后端处理，可用真实显示器名称、音量、静音和左右平衡。板载端口名称在系统设置中按系统语言显示。AppleHDA HAL 为可选项，安装路径和退出方式见 [HAL 安装说明](NMXAudio/DEPLOYMENT.md#4-安装到系统)。
+
+## 开发
+
+[构建说明](NMXAudio/README.md) · [声卡配置贡献](CONTRIBUTING.md) · [15 个 AppleALC PR 的原始提交与合并记录](NMXAudio/APPLEALC-PRS.md)
+
+[AppleALC 中文文档](README_CN.md) · [AppleALC 上游文档](https://github.com/acidanthera/AppleALC/wiki)
+
+<details>
+<summary>AppleALC 上游项目说明</summary>
 
 AppleALC
 ========
@@ -61,3 +89,5 @@ To support more audio codecs in the binary packages you are asked to submit your
 
 #### Donations
 Writing and supporting code is fun but it takes time. If you want to thank the author for his work consider contributing, bugreporting, or providing the support to other users.
+
+</details>

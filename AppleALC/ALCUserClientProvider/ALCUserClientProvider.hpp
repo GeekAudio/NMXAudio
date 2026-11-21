@@ -22,6 +22,9 @@ class EXPORT ALCUserClientProvider : public IOService {
 
 	IOService* 	hdaCodecDevice { nullptr };
 	bool		readyForVerbs	{ false	};
+#if defined(NMXAUDIO_AUX_HOST)
+	bool		nativeController { false };
+#endif
 
 public:
 	virtual IOService* probe(IOService *provider, SInt32 *score) override;

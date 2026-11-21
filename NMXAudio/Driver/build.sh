@@ -9,6 +9,7 @@ readonly LIBERATOR_REV=edd4489e4ab62dbdbdda5ab593efc1ffeb382d9f
 readonly FREEBSD_REV=628422c36c6f88bf36992fc117fbb8f79a50647a
 readonly XNU_BRIDGE_REV=c104f584b71515c8e30855e9048a902a012c3131
 readonly XNU_BRIDGE_PATH=gpu-port/xkpi/xnu/nmx_mm.cpp
+readonly NATIVE_PROFILE_DARWIN=25
 
 die() { printf 'NMXAudio build: %s\n' "$*" >&2; exit 1; }
 
@@ -65,12 +66,30 @@ bsd_sys="$freebsd_repo/sys"
 patch -p1 -d "$src" -f -s <"$patch_file" || die "feature patch does not apply to pinned Liberator source"
 patch -p1 -d "$src" -f -s <"$port_patch" || die "audio-only port bridge patch does not apply to pinned Liberator source"
 
-if [[ "${NMXAUDIO_BUILD_MODE:-kext}" == objects ]]; then
-  patch -p1 -d "$src" -f -s <"$script_dir/combined-driver.patch" ||
-    die "combined driver entry-point patch failed"
-elif [[ "${NMXAUDIO_BUILD_MODE:-kext}" != kext ]]; then
-  die "expected NMXAUDIO_BUILD_MODE=kext or objects"
-fi
+mode=${NMXAUDIO_BUILD_MODE:-kext}
+case "$mode" in
+  objects)
+    patch -p1 -d "$src" -f -s <"$script_dir/combined-driver.patch" ||
+      die "combined driver entry-point patch failed"
+    ;;
+  kext|aux-objects)
+    overlay="$src/realmac27/audio/NMXAudio/include/dev/sound/pci/hda"
+    mkdir -p "$overlay"
+    git -C "$freebsd_repo" show "$FREEBSD_REV:sys/dev/sound/pci/hda/hdaa.h" >"$overlay/hdaa.h" ||
+      die "cannot stage the pinned HDA header"
+    patch -p1 -d "$src" -f -s <"$script_dir/system-driver.patch" ||
+      die "native system driver patch failed"
+    patch -p1 -d "$src" -f -s <"$script_dir/native-route-selection.patch" ||
+      die "native HDA route selection patch failed"
+    patch -p1 -d "$src" -f -s <"$script_dir/native-verb-client.patch" ||
+      die "native codec user-client patch failed"
+    if [[ "$mode" == aux-objects ]]; then
+      patch -p1 -d "$src" -f -s <"$script_dir/startup-selection.patch" ||
+        die "embedded AppleHDA startup-selection patch failed"
+    fi
+    ;;
+  *) die "expected NMXAUDIO_BUILD_MODE=kext, objects or aux-objects" ;;
+esac
 
 audio_root="$src/realmac27/audio"
 audio="$audio_root/NMXAudio"
@@ -94,6 +113,14 @@ kernel_headers="$sdk/System/Library/Frameworks/Kernel.framework/Headers"
 if [[ ! -d "$kernel_headers" ]]; then die "macOS Kernel.framework headers are unavailable"; fi
 
 mkdir -p "$work/srcobj" "$work/audioobj" "$work/xnuobj" "$work/xkpi" "$audio/gen"
+applealc_resources="$script_dir/../../Resources"
+if [[ "$mode" != objects ]]; then
+  python3 "$script_dir/generate-native-profiles.py" "$applealc_resources" \
+    "$audio/gen/nmx_native_profiles.h" --darwin-major "$NATIVE_PROFILE_DARWIN" \
+    --report "$work/native-profiles.json" || die "cannot compile AppleALC native profiles"
+  cp -X "$script_dir/bridge/nmx_hda_native_routes.inc" "$audio/gen/"
+  kernel_sources+=("$script_dir/bridge/nmx_hda_codec_verb.c")
+fi
 export XKPI="$work/xkpi"
 export FREEBSD_SYS="$bsd_sys"
 export SRC_ROOT="$src"
@@ -153,7 +180,22 @@ git -C "$driver_repo" show "$XNU_BRIDGE_REV:$XNU_BRIDGE_PATH" >"$work/nmx_mm.cpp
 actual_mm_sha=$(shasum -a 256 "$work/nmx_mm.cpp" | awk '{print $1}')
 expected_mm_sha=ad9e4e8e2335ee5bc0987999bc0cef83741d32ce67e2830e5735acc72bdc7fa5
 [[ "$actual_mm_sha" == "$expected_mm_sha" ]] || die "historical nmx_mm.cpp does not match the reviewed source"
-for source in "$work/nmx_mm.cpp" "$script_dir/bridge/nmx_xnu_audio_memory.cpp" "$script_dir/bridge/nmx_xnu_audio_pci.cpp"; do
+bridge_sources=(
+  "$work/nmx_mm.cpp"
+  "$script_dir/bridge/nmx_xnu_audio_memory.cpp"
+  "$script_dir/bridge/nmx_xnu_audio_pci.cpp"
+)
+if [[ "$mode" != objects ]]; then
+  kext_flags+=(-DNMX_NATIVE_PROFILE_DARWIN="$NATIVE_PROFILE_DARWIN")
+  bridge_sources+=("$script_dir/bridge/nmx_xnu_audio_layout.cpp")
+fi
+if [[ "$mode" == kext ]]; then
+  bridge_sources+=("$script_dir/bridge/nmx_xnu_alc_verbs.cpp")
+elif [[ "$mode" == aux-objects ]]; then
+  bridge_sources+=("$script_dir/../../AppleALC/kern_aux_host.cpp"
+                    "$script_dir/../../AppleALC/kern_aux_resources.cpp")
+fi
+for source in "${bridge_sources[@]}"; do
   name=$(basename "$source" .cpp)
   xcrun clang++ "${kext_flags[@]}" -c "$source" -o "$work/xnuobj/$name.o" \
     >"$work/bridge-$name.log" 2>&1 || {
@@ -163,7 +205,7 @@ for source in "$work/nmx_mm.cpp" "$script_dir/bridge/nmx_xnu_audio_memory.cpp" "
 done
 
 
-if [[ "${NMXAUDIO_BUILD_MODE:-kext}" == objects ]]; then
+if [[ "$mode" != kext ]]; then
   xcrun libtool -static -o "$work/libNMXAudio.a" "$work"/audioobj/*.o "$work"/srcobj/*.o "$work"/xnuobj/*.o
   mkdir "$output"
   cp -X "$work/libNMXAudio.a" "$audio/Info.plist" "$output/"
@@ -184,8 +226,27 @@ xcrun nm -ju "$binary" | LC_ALL=C sort -u >"$work/imports.txt"
 if grep -E '^(_nmx_|_bus_(alloc_resource|dma)|_device_get_softc|_pci_read_config|_rman_get_start)|x86_return_thunk|__cxa_' "$work/imports.txt"; then
   die "NMXAudio has unresolved driver-owned imports"
 fi
+if grep -Ei 'applehda|iohdafamily|iohdacodecdevice|lilu|simplehda' "$work/imports.txt"; then
+  die "the system build imports symbols from an external audio patcher or driver"
+fi
 cp -X "$audio/Info.plist" "$kext/Contents/Info.plist"
 plutil -lint "$kext/Contents/Info.plist" >/dev/null
+python3 - "$kext/Contents/Info.plist" <<'PY' || die "unexpected system kext dependency"
+import plistlib
+import sys
+
+with open(sys.argv[1], "rb") as stream:
+    info = plistlib.load(stream)
+for key in ("OSBundleLibraries", "OSBundleLibraries_x86_64"):
+    libraries = info.get(key, {})
+    for library in libraries:
+        if any(name in library.lower() for name in ("applehda", "iohdafamily", "lilu", "simplehda")):
+            raise SystemExit(f"Unsupported dependency for the native build: {library}")
+PY
+catalog="$kext/Contents/Resources/AppleALC"
+mkdir -p "$(dirname "$catalog")"
+python3 "$script_dir/package-applealc-resources.py" "$applealc_resources" "$catalog" ||
+  die "cannot package the AppleALC resource catalog"
 codesign --force --sign - --timestamp=none "$kext" >/dev/null
 codesign --verify --deep --strict "$kext" || die "kext signature verification failed"
 lipo "$binary" -verify_arch x86_64 || die "kext architecture verification failed"
@@ -200,6 +261,11 @@ pci_sha=$(shasum -a 256 "$script_dir/bridge/nmx_xnu_audio_pci.cpp" | awk '{print
 
 mkdir -p "$output"
 cp -R "$kext" "$output/NMXAudio.kext"
+cp -X "$work/native-profiles.json" "$output/NATIVE-PROFILES.json"
+python3 "$script_dir/package-applealc-resources.py" "$applealc_resources" \
+  "$output/NMXAudio.kext/Contents/Resources/AppleALC" --verify ||
+  die "copied AppleALC catalog does not match the source resources"
+codesign --verify --deep --strict "$output/NMXAudio.kext" || die "copied kext signature verification failed"
 cat >"$output/BUILD-INFO.txt" <<EOF
 NMXAudio build
 Version: $bundle_version
@@ -212,11 +278,20 @@ NMX XNU PCI bridge: adapted from NullMoth public bridge, SHA-256 $pci_sha
 Historical XNU VM bridge: NullMoth nvidia-macos-driver $XNU_BRIDGE_REV:$XNU_BRIDGE_PATH
 Historical nmx_mm.cpp SHA-256: $actual_mm_sha
 Feature patch SHA-256: $patch_sha
+System driver patch SHA-256: $(shasum -a 256 "$script_dir/system-driver.patch" | awk '{print $1}')
+Codec user-client patch SHA-256: $(shasum -a 256 "$script_dir/native-verb-client.patch" | awk '{print $1}')
+Codec command bridge SHA-256: $(shasum -a 256 "$script_dir/bridge/nmx_hda_codec_verb.c" | awk '{print $1}')
+Codec user-client SHA-256: $(shasum -a 256 "$script_dir/bridge/nmx_xnu_alc_verbs.cpp" | awk '{print $1}')
+Native profile catalog: AppleALC resources for Darwin $NATIVE_PROFILE_DARWIN
+Native route patch SHA-256: $(shasum -a 256 "$script_dir/native-route-selection.patch" | awk '{print $1}')
+Native profile report SHA-256: $(shasum -a 256 "$work/native-profiles.json" | awk '{print $1}')
+AppleALC resource catalog SHA-256: $(shasum -a 256 "$catalog/Resources.zip" | awk '{print $1}')
 Audio-only port bridge patch SHA-256: $port_patch_sha
 Kernel binary UUID: $uuid
 Kernel binary SHA-256: $binary_sha
 EOF
-(cd "$output" && shasum -a 256 NMXAudio.kext/Contents/MacOS/NMXAudio BUILD-INFO.txt >SHA256SUMS)
+(cd "$output" && shasum -a 256 NMXAudio.kext/Contents/MacOS/NMXAudio \
+  NMXAudio.kext/Contents/Resources/AppleALC/Resources.zip NATIVE-PROFILES.json BUILD-INFO.txt >SHA256SUMS)
 printf 'Built NMXAudio %s (x86_64)\n' "$bundle_version"
 printf 'UUID %s\nSHA-256 %s\n' "$uuid" "$binary_sha"
 printf 'Output: %s\n' "$output"

@@ -1,0 +1,410 @@
+--- a/realmac27/audio/NMXAudio/freebsd-hda/hdaa.c
++++ b/realmac27/audio/NMXAudio/freebsd-hda/hdaa.c
+@@ -47,6 +47,7 @@
+ 
+ #include "mixer_if.h"
+ #include "nmx_pcm.h"
++#include "nmx_native_profiles.h"
+ 
+ #define hdaa_lock(devinfo)	mtx_lock((devinfo)->lock)
+ #define hdaa_unlock(devinfo)	mtx_unlock((devinfo)->lock)
+@@ -1787,6 +1788,340 @@
+ 	return;
+ }
+ 
++uint32_t nmx_audio_native_layout(void *controller);
++void nmx_audio_native_publish(void *controller, uint32_t layout);
++
++#define NMX_NATIVE_MAX_PINS 32
++#define NMX_NATIVE_MAX_VERBS 256
++
++struct nmx_hda_snapshot {
++	uint8_t nid;
++	uint32_t value;
++};
++
++static bool
++nmx_hda_live_pin(struct hdaa_devinfo *devinfo, uint8_t nid)
++{
++	uint32_t capabilities;
++
++	if (nid < devinfo->startnode || nid >= devinfo->endnode)
++		return false;
++	capabilities = hda_command(devinfo->dev,
++	    HDA_CMD_GET_PARAMETER(0, nid, HDA_PARAM_AUDIO_WIDGET_CAP));
++	return capabilities != HDA_INVALID &&
++	    HDA_PARAM_AUDIO_WIDGET_CAP_TYPE(capabilities) ==
++	    HDA_PARAM_AUDIO_WIDGET_CAP_TYPE_PIN_COMPLEX;
++}
++
++static int
++nmx_hda_profile_pin_index(const struct nmx_native_profile *profile,
++	uint8_t nid)
++{
++	uint16_t i;
++
++	for (i = 0; i < profile->pin_count; i++) {
++		if (profile->pins[i].nid == nid)
++			return (int)i;
++	}
++	return -1;
++}
++
++static const struct nmx_native_profile *
++nmx_hda_select_native_profile(struct hdaa_devinfo *devinfo)
++{
++	const struct nmx_native_profile *selected = NULL;
++	void *controller;
++	uint32_t layout, codec_id;
++	size_t i, matches = 0;
++
++	controller = nmx_device_xnu(devinfo->dev);
++	if (controller == NULL)
++		return NULL;
++	layout = nmx_audio_native_layout(controller);
++	if (layout == 0)
++		return NULL;
++	codec_id = hdaa_codec_id(devinfo);
++	for (i = 0; i < sizeof(nmx_native_profiles) /
++	    sizeof(nmx_native_profiles[0]); i++) {
++		const struct nmx_native_profile *profile = &nmx_native_profiles[i];
++
++		if (profile->codec_id == codec_id && profile->layout_id == layout &&
++		    profile->function_group == devinfo->nid) {
++			selected = profile;
++			matches++;
++		}
++	}
++	if (matches != 1) {
++		if (matches > 1)
++			device_printf(devinfo->dev,
++			    "AppleALC profile selection is ambiguous: codec=0x%08x layout=%u function-group=%u matches=%u\n",
++			    codec_id, layout, devinfo->nid, (unsigned int)matches);
++		return NULL;
++	}
++	return selected;
++}
++
++static bool
++nmx_hda_validate_native_profile(struct hdaa_devinfo *devinfo,
++	const struct nmx_native_profile *profile)
++{
++	const struct nmx_native_verb *verb;
++	uint16_t i, j;
++	size_t total;
++
++	if (profile == NULL || profile->pins == NULL || profile->pin_count == 0 ||
++	    profile->pin_count > NMX_NATIVE_MAX_PINS ||
++	    profile->boot_verbs == NULL || profile->boot_count == 0 ||
++	    profile->boot_count > NMX_NATIVE_MAX_VERBS ||
++	    profile->wake_count > NMX_NATIVE_MAX_VERBS ||
++	    (profile->wake_count != 0 && profile->wake_verbs == NULL))
++		return false;
++	for (i = 0; i < profile->pin_count; i++) {
++		if (!nmx_hda_live_pin(devinfo, profile->pins[i].nid))
++			return false;
++		for (j = i + 1; j < profile->pin_count; j++) {
++			if (profile->pins[i].nid == profile->pins[j].nid)
++				return false;
++		}
++	}
++	total = (size_t)profile->boot_count + profile->wake_count;
++	for (i = 0; i < total; i++) {
++		if (i < profile->boot_count)
++			verb = &profile->boot_verbs[i];
++		else
++			verb = &profile->wake_verbs[i - profile->boot_count];
++		if ((verb->command < 0x71c || verb->command > 0x71f) &&
++		    verb->command != 0x70c)
++			return false;
++		if (nmx_hda_profile_pin_index(profile, verb->nid) < 0)
++			return false;
++	}
++	return true;
++}
++
++static int
++nmx_hda_snapshot_index(const struct nmx_hda_snapshot *snapshots, size_t count,
++	uint8_t nid)
++{
++	size_t i;
++
++	for (i = 0; i < count; i++) {
++		if (snapshots[i].nid == nid)
++			return (int)i;
++	}
++	return -1;
++}
++
++static bool
++nmx_hda_apply_native_verbs(struct hdaa_devinfo *devinfo,
++	const struct nmx_native_verb *verbs, size_t count)
++{
++	size_t i;
++
++	for (i = 0; i < count; i++) {
++		uint32_t response = hda_command(devinfo->dev,
++		    HDA_CMD_12BIT(0, verbs[i].nid, verbs[i].command,
++		    verbs[i].payload));
++		if (response == HDA_INVALID) {
++			device_printf(devinfo->dev,
++			    "AppleALC verb failed: nid=%u verb=0x%03x payload=0x%02x\n",
++			    verbs[i].nid, verbs[i].command, verbs[i].payload);
++			return false;
++		}
++	}
++	return true;
++}
++
++static void
++nmx_hda_restore_native_state(struct hdaa_devinfo *devinfo,
++	const struct nmx_native_profile *profile,
++	const struct nmx_hda_snapshot *pins,
++	const struct nmx_hda_snapshot *eapd, size_t eapd_count)
++{
++	bool restored = true;
++	uint16_t i;
++	size_t j;
++	unsigned int byte;
++	uint32_t response;
++
++	for (i = 0; i < profile->pin_count; i++) {
++		for (byte = 0; byte < 4; byte++) {
++			response = hda_command(devinfo->dev,
++			    HDA_CMD_12BIT(0, pins[i].nid, 0x71c + byte,
++			    (pins[i].value >> (byte * 8)) & 0xff));
++			if (response == HDA_INVALID)
++				restored = false;
++		}
++	}
++	for (j = 0; j < eapd_count; j++) {
++		response = hda_command(devinfo->dev,
++		    HDA_CMD_SET_EAPD_BTL_ENABLE(0, eapd[j].nid,
++		    eapd[j].value & 0xff));
++		if (response == HDA_INVALID)
++			restored = false;
++	}
++	for (i = 0; i < profile->pin_count; i++) {
++		response = hda_command(devinfo->dev,
++		    HDA_CMD_GET_CONFIGURATION_DEFAULT(0, pins[i].nid));
++		if (response != pins[i].value)
++			restored = false;
++	}
++	for (j = 0; j < eapd_count; j++) {
++		response = hda_command(devinfo->dev,
++		    HDA_CMD_GET_EAPD_BTL_ENABLE(0, eapd[j].nid));
++		if (response == HDA_INVALID || (response & 0xff) != eapd[j].value)
++			restored = false;
++	}
++	if (!restored)
++		device_printf(devinfo->dev,
++		    "AppleALC layout %u rollback did not fully verify\n",
++		    profile->layout_id);
++}
++
++static bool
++nmx_hda_native_transaction(struct hdaa_devinfo *devinfo,
++	const struct nmx_native_profile *profile,
++	const struct nmx_native_verb *verbs, size_t count, bool verify_profile)
++{
++	struct nmx_hda_snapshot original_pins[NMX_NATIVE_MAX_PINS];
++	struct nmx_hda_snapshot original_eapd[NMX_NATIVE_MAX_PINS];
++	uint32_t expected[NMX_NATIVE_MAX_PINS];
++	uint32_t expected_eapd[NMX_NATIVE_MAX_PINS];
++	size_t eapd_count = 0, i, j;
++	uint16_t pin_index;
++	int index;
++	uint32_t actual;
++	unsigned int byte;
++
++	if (count == 0 || count > NMX_NATIVE_MAX_VERBS ||
++	    !nmx_hda_validate_native_profile(devinfo, profile))
++		return false;
++	for (pin_index = 0; pin_index < profile->pin_count; pin_index++) {
++		original_pins[pin_index].nid = profile->pins[pin_index].nid;
++		original_pins[pin_index].value = hda_command(devinfo->dev,
++		    HDA_CMD_GET_CONFIGURATION_DEFAULT(0, original_pins[pin_index].nid));
++		if (original_pins[pin_index].value == HDA_INVALID)
++			return false;
++		expected[pin_index] = original_pins[pin_index].value;
++	}
++	for (i = 0; i < count; i++) {
++		if (verbs[i].command != 0x70c ||
++		    nmx_hda_snapshot_index(original_eapd, eapd_count, verbs[i].nid) >= 0)
++			continue;
++		if (eapd_count >= NMX_NATIVE_MAX_PINS)
++			return false;
++		original_eapd[eapd_count].nid = verbs[i].nid;
++		original_eapd[eapd_count].value = hda_command(devinfo->dev,
++		    HDA_CMD_GET_EAPD_BTL_ENABLE(0, verbs[i].nid));
++		if (original_eapd[eapd_count].value == HDA_INVALID)
++			return false;
++		expected_eapd[eapd_count] = original_eapd[eapd_count].value & 0xff;
++		eapd_count++;
++	}
++	for (i = 0; i < count; i++) {
++		if (verbs[i].command >= 0x71c && verbs[i].command <= 0x71f) {
++			index = nmx_hda_profile_pin_index(profile, verbs[i].nid);
++			if (index < 0)
++				return false;
++			byte = verbs[i].command - 0x71c;
++			expected[index] &= ~(0xffU << (byte * 8));
++			expected[index] |= (uint32_t)verbs[i].payload << (byte * 8);
++		} else if (verbs[i].command == 0x70c) {
++			index = nmx_hda_snapshot_index(original_eapd, eapd_count,
++			    verbs[i].nid);
++			if (index < 0)
++				return false;
++			expected_eapd[index] = verbs[i].payload;
++		}
++	}
++	if (verify_profile) {
++		for (pin_index = 0; pin_index < profile->pin_count; pin_index++) {
++			if (expected[pin_index] != profile->pins[pin_index].config) {
++				device_printf(devinfo->dev,
++				    "AppleALC layout %u pin table disagrees with boot verbs at nid=%u\n",
++				    profile->layout_id, profile->pins[pin_index].nid);
++				return false;
++			}
++		}
++	}
++	if (!nmx_hda_apply_native_verbs(devinfo, verbs, count))
++		goto rollback;
++	for (pin_index = 0; pin_index < profile->pin_count; pin_index++) {
++		actual = hda_command(devinfo->dev,
++		    HDA_CMD_GET_CONFIGURATION_DEFAULT(0, profile->pins[pin_index].nid));
++		if (actual == HDA_INVALID || actual != expected[pin_index]) {
++			device_printf(devinfo->dev,
++			    "AppleALC layout %u pin readback failed: nid=%u got=0x%08x expected=0x%08x\n",
++			    profile->layout_id, profile->pins[pin_index].nid,
++			    actual, expected[pin_index]);
++			goto rollback;
++		}
++	}
++	for (j = 0; j < eapd_count; j++) {
++		actual = hda_command(devinfo->dev,
++		    HDA_CMD_GET_EAPD_BTL_ENABLE(0, original_eapd[j].nid));
++		if (actual == HDA_INVALID || (actual & 0xff) != expected_eapd[j]) {
++			device_printf(devinfo->dev,
++			    "AppleALC layout %u EAPD readback failed: nid=%u got=0x%02x expected=0x%02x\n",
++			    profile->layout_id, original_eapd[j].nid,
++			    actual & 0xff, expected_eapd[j]);
++			goto rollback;
++		}
++	}
++	return true;
++
++rollback:
++	nmx_hda_restore_native_state(devinfo, profile, original_pins,
++	    original_eapd, eapd_count);
++	return false;
++}
++
++static void
++nmx_hda_apply_native_layout(struct hdaa_devinfo *devinfo)
++{
++	const struct nmx_native_profile *profile;
++	void *controller;
++
++	devinfo->nmx_native_profile = NULL;
++	profile = nmx_hda_select_native_profile(devinfo);
++	if (profile == NULL)
++		return;
++	controller = nmx_device_xnu(devinfo->dev);
++	if (!nmx_hda_native_transaction(devinfo, profile, profile->boot_verbs,
++	    profile->boot_count, true)) {
++		device_printf(devinfo->dev,
++		    "AppleALC codec 0x%08x layout %u profile rejected; using FreeBSD pins\n",
++		    profile->codec_id, profile->layout_id);
++		if (controller != NULL)
++			nmx_audio_native_publish(controller, 0);
++		return;
++	}
++	devinfo->nmx_native_profile = profile;
++	nmx_audio_native_publish(controller, profile->layout_id);
++	device_printf(devinfo->dev,
++	    "Applied AppleALC codec 0x%08x layout %u profile: %u pins, %u boot verbs\n",
++	    profile->codec_id, profile->layout_id, profile->pin_count,
++	    profile->boot_count);
++}
++
++static bool
++nmx_hda_apply_native_wake(struct hdaa_devinfo *devinfo)
++{
++	const struct nmx_native_profile *profile = devinfo->nmx_native_profile;
++
++	if (profile == NULL || profile->wake_count == 0 ||
++	    !nmx_hda_native_transaction(devinfo, profile, profile->wake_verbs,
++	    profile->wake_count, false)) {
++		device_printf(devinfo->dev,
++		    "AppleALC wake reinit failed for native profile\n");
++		return false;
++	}
++	device_printf(devinfo->dev,
++	    "Reapplied AppleALC codec 0x%08x layout %u wake verbs\n",
++	    profile->codec_id, profile->layout_id);
++	return true;
++}
++
+ static void
+ hdaa_widget_parse(struct hdaa_widget *w)
+ {
+@@ -3252,6 +3587,8 @@
+ 	nid_t nid;
+ 
+ 	nid = devinfo->nid;
++
++	nmx_hda_apply_native_layout(devinfo);
+ 
+ 	res = hda_command(devinfo->dev,
+ 	    HDA_CMD_GET_PARAMETER(0, nid, HDA_PARAM_GPIO_COUNT));
+@@ -6906,6 +7243,15 @@
+ 		device_printf(dev, "Applying direct built-in patches...\n");
+ 	);
+ 	hdaa_patch_direct(devinfo);
++	if (devinfo->nmx_native_profile != NULL &&
++	    devinfo->nmx_native_profile->wake_count != 0) {
++		void *controller = nmx_device_xnu(devinfo->dev);
++		if (nmx_hda_apply_native_wake(devinfo))
++			nmx_audio_native_publish(controller,
++			    devinfo->nmx_native_profile->layout_id);
++		else
++			nmx_audio_native_publish(controller, 0);
++	}
+ 	HDA_BOOTHVERBOSE(
+ 		device_printf(dev, "Pin sense init...\n");
+ 	);
+--- a/realmac27/audio/NMXAudio/include/dev/sound/pci/hda/hdaa.h
++++ b/realmac27/audio/NMXAudio/include/dev/sound/pci/hda/hdaa.h
+@@ -213,6 +213,7 @@
+ 	struct callout		poll_jack;
+ 	int			poll_ival;
+ 	uint32_t		init_clear;
++	const struct nmx_native_profile *nmx_native_profile;
+ };
+ 
+ #define HDAA_CHN_RUNNING	0x00000001
+--- a/realmac27/audio/NMXAudio/Info.plist
++++ b/realmac27/audio/NMXAudio/Info.plist
+@@ -8,8 +8,8 @@
+   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+   <key>CFBundleName</key><string>NMXAudio</string>
+   <key>CFBundlePackageType</key><string>KEXT</string>
+-  <key>CFBundleShortVersionString</key><string>1.0.2</string>
+-  <key>CFBundleVersion</key><string>1.0.2</string>
++  <key>CFBundleShortVersionString</key><string>1.0.7</string>
++  <key>CFBundleVersion</key><string>1.0.7</string>
+   <key>IOKitPersonalities</key>
+   <dict>
+     <key>HDAudio</key>
+--- a/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
++++ b/realmac27/audio/NMXAudio/nmx_audio_kext.cpp
+@@ -1068,7 +1068,7 @@
+ extern "C" {
+ kern_return_t _start(kmod_info_t *ki, void *data);
+ kern_return_t _stop(kmod_info_t *ki, void *data);
+-KMOD_EXPLICIT_DECL(com.nullmoth.NMXAudio, "1.0.2", _start, _stop)
++KMOD_EXPLICIT_DECL(com.nullmoth.NMXAudio, "1.0.7", _start, _stop)
+ __private_extern__ kmod_start_func_t *_realmain = nmx_audio_kmod_start;
+ __private_extern__ kmod_stop_func_t *_antimain = nmx_audio_kmod_stop;
+ }

@@ -17,6 +17,12 @@
 #include "kern_alc.hpp"
 #include "kern_resources.hpp"
 
+#if defined(NMXAUDIO_AUX_HOST)
+#include <libkern/OSKextLib.h>
+#include "kern_aux_image.hpp"
+#include "kern_aux_resources.hpp"
+#endif
+
 static AlcEnabler alcEnabler;
 
 // Only used in apple-driven callbacks
@@ -32,6 +38,7 @@ void AlcEnabler::createShared() {
 		PANIC("alc", "Failed to assign alc callback");
 }
 
+#if !defined(NMXAUDIO_AUX_HOST)
 void AlcEnabler::init() {
 
 	lilu.onPatcherLoadForce(
@@ -67,6 +74,7 @@ void AlcEnabler::init() {
 		}
 	}
 }
+#endif
 
 void AlcEnabler::deinit() {
 	controllers.deinit();
@@ -624,6 +632,7 @@ void AlcEnabler::processKext(KernelPatcher &patcher, size_t index, mach_vm_addre
 			patcher.routeMultiple(index, &requestPinConfig, 1, address, size);
 		}
 		
+#if !defined(NMXAUDIO_AUX_HOST)
 		// layout and platform load callbacks only exist in 10.6.8 and later
 		if (patcher.solveSymbol(index, "__ZN14AppleHDADriver18layoutLoadCallbackEjiPKvjPv")) {
 			KernelPatcher::RouteRequest requestsCallbacks[] {
@@ -634,6 +643,7 @@ void AlcEnabler::processKext(KernelPatcher &patcher, size_t index, mach_vm_addre
 		} else {
 			patcher.clearError();
 		}
+#endif
 		
 		// 10.6.8 to 10.7.5, and early versions of 10.8 do not use zlib compression for resources
 		isAppleHDAZlib = getKernelVersion() >= KernelVersion::Mavericks || patcher.solveSymbol(index, "__Z24AppleHDA_zlib_uncompressPhPmPKhm") != 0;
@@ -1297,6 +1307,233 @@ bool AlcEnabler::validateInjection(IORegistryEntry *hdaService) {
 	
 	return !noControllerInject;
 }
+
+#if defined(NMXAUDIO_AUX_HOST)
+namespace {
+KernelPatcher embeddedPatcher;
+NMXAux::Image embeddedHDAImage;
+mach_vm_address_t ownAddress;
+
+bool configureEmbeddedHDALocalization(size_t index) {
+	constexpr char stockBundle[] = "AppleHDA.kext";
+	// IOAudioDeviceLocalizedBundle is relative to /System/Library/Extensions.
+	static constexpr char nestedBundle[] =
+		"../../../Library/Extensions/NMXAudio.kext/Contents/PlugIns/AppleHDA.kext";
+	auto address = embeddedPatcher.solveSymbol(index, "__ZN14AppleHDADriver14kextNameStringE",
+											 embeddedHDAImage.address, embeddedHDAImage.size);
+	if (address % alignof(const char *) != 0 ||
+		!NMXAux::segmentContains(embeddedHDAImage, "__DATA", address, sizeof(const char *), VM_PROT_READ | VM_PROT_WRITE))
+		return false;
+	auto bundleName = reinterpret_cast<const char **>(address);
+	if (!NMXAux::segmentContains(embeddedHDAImage, "__TEXT", reinterpret_cast<mach_vm_address_t>(*bundleName),
+								 sizeof(stockBundle), VM_PROT_READ) || memcmp(*bundleName, stockBundle, sizeof(stockBundle)))
+		return false;
+	// The codec matching gate is still closed. AppleHDA will publish this
+	// path as it initializes, allowing CoreAudio to pick the user's language.
+	*bundleName = nestedBundle;
+	return true;
+}
+
+bool configureEmbeddedHDAHAL(KernelPatcher::KextInfo &hda) {
+	// Both AppleHDA HAL registration paths use the engine's virtual C-string
+	// setter. KXLD normalizes inherited slots during its build, so update the
+	// four relocated engine vtables before opening the codec match gate.
+	constexpr const char *engineVtables[] = {
+		"__ZTV14AppleHDAEngine", "__ZTV19AppleHDAEngineInput",
+		"__ZTV20AppleHDAEngineOutput", "__ZTV22AppleHDAEngineOutputDP",
+	};
+	constexpr size_t setterOffset = 0x280;
+	auto original = embeddedPatcher.solveSymbol(KernelPatcher::KernelID,
+		"__ZN15IORegistryEntry11setPropertyEPKcS1_");
+	if (!original)
+		return false;
+	auto replacement = reinterpret_cast<mach_vm_address_t>(NMXHDASetEmbeddedRegistryCStringProperty);
+	mach_vm_address_t *slots[arrsize(engineVtables)] {};
+	for (size_t i = 0; i < arrsize(engineVtables); ++i) {
+		auto vtable = embeddedPatcher.solveSymbol(hda.loadIndex, engineVtables[i],
+			embeddedHDAImage.address, embeddedHDAImage.size);
+		if (!vtable)
+			return false;
+		auto address = vtable + setterOffset;
+		if (address % alignof(mach_vm_address_t) ||
+			!NMXAux::segmentContains(embeddedHDAImage, "__DATA", address, sizeof(original) + 1, VM_PROT_READ))
+			return false;
+		slots[i] = reinterpret_cast<mach_vm_address_t *>(address);
+		if (*slots[i] != original)
+			return false;
+	}
+
+	KernelPatcher::LookupPatch patch {&hda, reinterpret_cast<const uint8_t *>(&original),
+		reinterpret_cast<const uint8_t *>(&replacement), sizeof(original), 1};
+	for (auto slot : slots) {
+		embeddedPatcher.applyLookupPatch(&patch, reinterpret_cast<uint8_t *>(slot), sizeof(original) + 1);
+		if (*slot == replacement && embeddedPatcher.getError() == KernelPatcher::Error::NoError)
+			continue;
+		// Revert any installed entries before allowing the ordinary audio path.
+		KernelPatcher::LookupPatch restore {&hda, patch.replace, patch.find, patch.size, patch.count};
+		for (auto written : slots) {
+			if (*written == replacement)
+				embeddedPatcher.applyLookupPatch(&restore, reinterpret_cast<uint8_t *>(written), sizeof(original) + 1);
+		}
+		return false;
+	}
+	return true;
+}
+}
+
+extern "C" void nmx_applealc_module_address(kmod_info_t *module) {
+	if (module)
+		ownAddress = module->address;
+}
+
+bool AlcEnabler::prepareEmbeddedController(IOPCIDevice *pci, uint32_t layout) {
+	if (!ownAddress || getKernelVersion() != KernelVersion::Tahoe ||
+		checkKernelArgument("-alcoff") || !validateInjection(pci) || !layout)
+		return false;
+
+	embeddedPatcher.init();
+	if (embeddedPatcher.getError() != KernelPatcher::Error::NoError)
+		return false;
+	auto headerSymbol = embeddedPatcher.solveSymbol(KernelPatcher::KernelID, "_PE_get_kc_header");
+	if (!headerSymbol || embeddedPatcher.getError() != KernelPatcher::Error::NoError)
+		return false;
+	auto collection = reinterpret_cast<const mach_header_64 *(*)(int)>(headerSymbol)(NMXAux::auxiliaryCollection);
+
+	auto &family = ADDPR(kextList)[KextIdIOHDAFamily];
+	auto &controller = ADDPR(kextList)[KextIdAppleHDAController];
+	auto &hda = ADDPR(kextList)[KextIdAppleHDA];
+	auto familyAddress = NMXAux::imageAddress(collection, ownAddress, family.id);
+	auto controllerAddress = NMXAux::imageAddress(collection, ownAddress, controller.id);
+	auto hdaAddress = NMXAux::imageAddress(collection, ownAddress, hda.id);
+	if (!familyAddress || !controllerAddress || !hdaAddress) {
+		SYSLOG("aux", "AppleHDA or a required dependency is absent from the NMXAudio AuxKC");
+		return false;
+	}
+
+	// Load AppleHDA and its dependencies through XNU, on the startup worker.
+	// XNU starts the kmods and relocates their images. The staged controller
+	// and codec personalities remain gated until their own patches are ready.
+	auto status = OSKextLoadKextWithIdentifier(hda.id);
+	if (status != kOSReturnSuccess) {
+		SYSLOG("aux", "XNU could not load embedded AppleHDA (0x%x)", static_cast<unsigned>(status));
+		return false;
+	}
+	auto familyImage = NMXAux::bindImage(embeddedPatcher, familyAddress, family);
+	if (!familyImage.address)
+		return false;
+	auto controlImage = NMXAux::bindImage(embeddedPatcher, controllerAddress, controller);
+	if (!controlImage.address)
+		return false;
+	embeddedHDAImage = NMXAux::bindImage(embeddedPatcher, hdaAddress, hda);
+	if (!embeddedHDAImage.address)
+		return false;
+	if (configureEmbeddedHDALocalization(hda.loadIndex)) {
+		SYSLOG("aux", "AppleHDA will publish the embedded localization bundle");
+	} else {
+		SYSLOG("aux", "AppleHDA localization bundle pointer did not match");
+		embeddedPatcher.clearError();
+	}
+	auto getLoadTag = embeddedPatcher.solveSymbol(KernelPatcher::KernelID, "_OSKextGetLoadTagForIdentifier");
+	if (!getLoadTag || !NMXAux::initializeResources(reinterpret_cast<OSKextLoadTag (*)(const char *)>(getLoadTag)(hda.id))) {
+		SYSLOG("aux", "could not initialize the embedded AppleHDA resource worker");
+		return false;
+	}
+	if (!configureEmbeddedHDAHAL(hda)) {
+		SYSLOG("aux", "AppleHDA HAL setter slots did not match");
+		embeddedPatcher.clearError();
+	}
+	SYSLOG("aux", "XNU loaded and relocated the embedded AppleHDA stack");
+
+	computerModel = BaseDeviceInfo::get().modelType;
+	insertController(pci->configRead16(kIOPCIConfigVendorID),
+		pci->configRead16(kIOPCIConfigDeviceID), pci->configRead8(kIOPCIConfigRevisionID),
+		pci->getProperty("no-controller-patch") != nullptr, ControllerModInfo::PlatformAny, layout, pci);
+	if (controllers.size() != 1)
+		return false;
+	validateControllers();
+	progressState |= ProcessingState::ControllersLoaded;
+
+	processKext(embeddedPatcher, family.loadIndex, familyImage.address, familyImage.size);
+	processKext(embeddedPatcher, controller.loadIndex, controlImage.address, controlImage.size);
+	if (!orgIOHDACodecDevice_executeVerb || !orgAppleHDAController_start)
+		return false;
+
+	// The startup host has chosen this exact onboard PCI device. Use the
+	// original AppleALC properties without enumerating unrelated PCI roots.
+	DeviceInfo device;
+	device.firmwareVendor = BaseDeviceInfo::get().firmwareVendor;
+	device.reportedLayoutId = 7;
+	if (!lilu_get_boot_args("alcapplid", &device.reportedLayoutId, sizeof(device.reportedLayoutId)))
+		WIOKit::getOSDataValue(pci, "apple-layout-id", device.reportedLayoutId);
+	updateDeviceProperties(pci, &device, nullptr, true);
+
+	uint32_t tcsel = 0;
+	if (!lilu_get_boot_args("alctcsel", &tcsel, sizeof(tcsel)))
+		WIOKit::getOSDataValue(pci, "alctcsel", tcsel);
+	if (tcsel && pci->configRead16(kIOPCIConfigVendorID) == WIOKit::VendorID::Intel) {
+		constexpr size_t regTCSEL = 0x44;
+		pci->configWrite8(regTCSEL, getBitField<uint8_t>(pci->configRead8(regTCSEL), 7, 3));
+	}
+	return pci->setProperty("alc-layout-id", &layout, sizeof(layout));
+}
+
+bool AlcEnabler::prepareEmbeddedCodec(IOPCIDevice *pci) {
+	if (!embeddedHDAImage.address || controllers.size() != 1 || controllers[0]->detect != pci)
+		return false;
+
+	auto iterator = IORegistryIterator::iterateOver(pci, gIOServicePlane, kIORegistryIterateRecursively);
+	if (!iterator)
+		return false;
+	currentController = 0;
+	while (auto entry = OSDynamicCast(IORegistryEntry, iterator->getNextObject())) {
+		if (entry->getProperty("IOHDACodecVendorID") &&
+			entry->getProperty("IOHDACodecRevisionID")) {
+			appendCodec(this, entry);
+			break;
+		}
+	}
+	iterator->release();
+	if (!validateCodecs())
+		return false;
+
+	auto &hda = ADDPR(kextList)[KextIdAppleHDA];
+	progressState |= ProcessingState::CodecsLoaded;
+	processKext(embeddedPatcher, hda.loadIndex, embeddedHDAImage.address, embeddedHDAImage.size);
+	if (!orgPerformPowerChange || !orgInitializePinConfig)
+		return false;
+
+	// The nested AppleHDA's requests link to our worker. Use the stock
+	// callbacks and the same AppleALC resource selection as the plug-in path.
+	auto select = [&](Resource type, const char *symbol) {
+		NMXAux::Resource resource {};
+		auto callback = embeddedPatcher.solveSymbol(hda.loadIndex, symbol, embeddedHDAImage.address, embeddedHDAImage.size);
+		if (callback) {
+			kern_return_t result = kOSKextReturnNotFound;
+			updateResource(type, result, resource.data, resource.size);
+			if (result == kOSReturnSuccess)
+				resource.callback = reinterpret_cast<OSKextRequestResourceCallback>(callback);
+		}
+		return resource;
+	};
+	auto layout = select(Resource::Layout, "__ZN14AppleHDADriver18layoutLoadCallbackEjiPKvjPv");
+	auto platform = select(Resource::Platform, "__ZN14AppleHDADriver20platformLoadCallbackEjiPKvjPv");
+	if (!NMXAux::setResources(layout, platform)) {
+		SYSLOG("aux", "could not bind both AppleHDA resources for layout %u", controllers[0]->layout);
+		return false;
+	}
+	SYSLOG("aux", "AppleHDA layout %u resources ready (%u layout bytes, %u platform bytes)",
+		controllers[0]->layout, layout.size, platform.size);
+	return true;
+}
+
+extern "C" bool nmx_prepare_applehda_controller(IOPCIDevice *pci, uint32_t layout) {
+	return AlcEnabler::getShared()->prepareEmbeddedController(pci, layout);
+}
+
+extern "C" bool nmx_prepare_applehda_codec(IOPCIDevice *pci) {
+	return AlcEnabler::getShared()->prepareEmbeddedCodec(pci);
+}
+#endif
 
 void AlcEnabler::applyPatches(KernelPatcher &patcher, size_t index, const KextPatch *patches, size_t patchNum) {
 	for (size_t p = 0; p < patchNum; p++) {

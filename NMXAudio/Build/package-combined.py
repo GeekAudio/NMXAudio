@@ -29,6 +29,7 @@ def main():
     parser.add_argument("nmx_info", type=Path)
     parser.add_argument("pins_info", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--aux-host", action="store_true")
     args = parser.parse_args()
 
     combined = args.output / "NMXAudio.kext"
@@ -46,6 +47,8 @@ def main():
 
     nmx = plist(args.nmx_info)
     for name, entry in nmx["IOKitPersonalities"].items():
+        if args.aux_host and name == "ALCUserClientProvider":
+            name = "ALCUserClientProviderNative"
         if name in personalities:
             raise ValueError(f"Conflicting IOKit personality name {name}")
         personalities[name] = dict(entry, CFBundleIdentifier=APPLEALC_ID)
@@ -53,6 +56,9 @@ def main():
     for library, version in nmx["OSBundleLibraries"].items():
         if library not in libraries or dependency_version(libraries[library]) < dependency_version(version):
             libraries[library] = version
+    if args.aux_host:
+        libraries.pop("as.vit9696.Lilu")
+        info["NMXAudioEmbeddedAppleHDAHost"] = True
 
     executable_name = info["CFBundleExecutable"]
     info.update(CFBundleName="NMXAudio", CFBundleExecutable="NMXAudio")

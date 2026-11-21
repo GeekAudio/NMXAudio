@@ -1,10 +1,29 @@
 #!/bin/bash
 set -euo pipefail
 
-if [[ $# != 6 ]]; then
-  printf 'Usage: %s <Lilu.kext> <MacKernelSDK> <liberator-git> <freebsd-git> <nvidia-driver-git> <new-output-dir>\n' "$0" >&2
+usage() {
+  printf 'Usage: %s [--aux-host <Lilu-source> <AppleHDA.kext> | --aux-host-base <Lilu-source>] <Lilu.kext> <MacKernelSDK> <liberator-git> <freebsd-git> <nvidia-driver-git> <new-output-dir>\n' "$0" >&2
   exit 2
-fi
+}
+
+mode=objects
+applehda=
+case "${1:-}" in
+  --aux-host)
+    [[ $# == 9 ]] || usage
+    mode=aux-objects
+    lilu_source=$2
+    applehda=$3
+    shift 3
+    ;;
+  --aux-host-base)
+    [[ $# == 8 ]] || usage
+    mode=aux-objects
+    lilu_source=$2
+    shift 2
+    ;;
+  *) [[ $# == 6 ]] || usage ;;
+esac
 
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 lilu=$1
@@ -27,27 +46,66 @@ for file in AppleALC AppleALC.xcodeproj Resources ResourceConverter Tools alc-ve
   /usr/bin/ditto "$repo/$file" "$source/$file"
 done
 /usr/bin/ditto "$lilu/Contents/Resources" "$source/Lilu.kext/Contents/Resources"
+if [[ "$mode" == aux-objects ]]; then
+  /bin/cp "$lilu_source"/Lilu/Headers/*.hpp "$lilu_source"/hde/hde{32,64}.h \
+    "$source/Lilu.kext/Contents/Resources/Headers"
+fi
 /usr/bin/ditto "$kernel_sdk/Headers" "$source/MacKernelSDK/Headers"
 /usr/bin/ditto "$kernel_sdk/Library" "$source/MacKernelSDK/Library"
 
 # Recompile the pinned NMXAudio source. The archive contains intermediate
 # compiler objects consumed by the same kernel target's final link.
-NMXAUDIO_BUILD_MODE=objects "$repo/NMXAudio/Driver/build.sh" \
+NMXAUDIO_BUILD_MODE="$mode" "$repo/NMXAudio/Driver/build.sh" \
   "$liberator" "$freebsd" "$nvidia_driver" "$work/nmx" >"$output/nmxaudio-build.log" 2>&1
+native_archive="$work/nmx/libNMXAudio.a"
+xcode_options=()
+package_options=()
+verify_options=()
+definition=NMXAUDIO_COMBINED=1
+bundle_output="$output"
+if [[ "$mode" == aux-objects ]]; then
+  "$repo/NMXAudio/Build/build-aux-patcher.sh" "$lilu_source" "$kernel_sdk" "$work/patcher" \
+    >"$output/patcher-build.log" 2>&1
+  xcode_options+=("OTHER_CPLUSPLUSFLAGS=$(cat "$work/patcher/defines.txt") -DLILU_CUSTOM_KMOD_INIT=1")
+  definition=NMXAUDIO_AUX_HOST=1
+  package_options+=(--aux-host)
+  if [[ -n "$applehda" ]]; then
+    verify_options+=(--aux-host)
+  else
+    verify_options+=(--aux-host-base)
+  fi
+  bundle_output="$work"
+  native_archive="$work/libNMXAuxAudio.a"
+  xcrun libtool -static -o "$native_archive" "$work/nmx/libNMXAudio.a" "$work/patcher/libNMXAuxPatcher.a"
+fi
+
 xcodebuild -project "$source/AppleALC.xcodeproj" -scheme AppleALC \
   -configuration Release -sdk macosx -arch x86_64 -derivedDataPath "$work/DerivedData" \
   CODE_SIGNING_ALLOWED=NO MACOSX_DEPLOYMENT_TARGET=15.0 \
-  NMXAUDIO_DEFINITIONS=NMXAUDIO_COMBINED=1 \
+  "NMXAUDIO_DEFINITIONS=$definition" \
   NMXAUDIO_MODULE_START=NMXAudio_combined_start \
   NMXAUDIO_MODULE_STOP=NMXAudio_combined_stop \
-  "NMXAUDIO_LDFLAGS=-Wl,-force_load,$work/nmx/libNMXAudio.a" \
+  "NMXAUDIO_LDFLAGS=-Wl,-force_load,$native_archive" \
+  ${xcode_options[@]+"${xcode_options[@]}"} \
   build >"$output/xcodebuild.log" 2>&1
 
 python3 "$repo/NMXAudio/Build/package-combined.py" \
+  ${package_options[@]+"${package_options[@]}"} \
   "$work/DerivedData/Build/Products/Release/AppleALC.kext" "$work/nmx/Info.plist" \
-  "$repo/Resources/PinConfigs.kext/Contents/Info.plist" "$output"
-python3 "$repo/NMXAudio/Build/verify-combined.py" "$output/NMXAudio.kext" "$repo"
+  "$repo/Resources/PinConfigs.kext/Contents/Info.plist" "$bundle_output"
+if [[ -n "$applehda" ]]; then
+  python3 "$repo/NMXAudio/Build/stage-applehda.py" --gated "$work/NMXAudio.kext" "$applehda" "$work/embedded"
+  /usr/bin/ditto "$work/embedded/NMXAudio.kext" "$output/NMXAudio.kext"
+  /usr/bin/codesign --verify --strict --deep "$output/NMXAudio.kext"
+elif [[ "$mode" == aux-objects ]]; then
+  /usr/bin/ditto "$work/NMXAudio.kext" "$output/NMXAudio.kext"
+fi
+python3 "$repo/NMXAudio/Build/verify-combined.py" ${verify_options[@]+"${verify_options[@]}"} "$output/NMXAudio.kext" "$repo"
 (
   cd "$output"
-  shasum -a 256 NMXAudio.kext/Contents/{Info.plist,MacOS/NMXAudio} > SHA256SUMS
+  if [[ "$mode" == aux-objects ]]; then
+    find NMXAudio.kext -type f -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 > SHA256SUMS
+  else
+    shasum -a 256 NMXAudio.kext/Contents/{Info.plist,MacOS/NMXAudio} > SHA256SUMS
+  fi
 )
